@@ -147,13 +147,19 @@ function json_response(string $status, string $message, array $data = [], int $h
  * @return string
  */
 function base_url(string $path = ''): string {
-    $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
-    $dirName = dirname($scriptName);
-    // Remove /public if present at end of dirName or adjust relative
-    $base = rtrim(str_replace('\\', '/', $dirName), '/');
-    if (substr($base, -7) === '/public') {
-        $base = substr($base, 0, -7);
+    $scriptName = str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? '');
+    $dirName = rtrim(dirname($scriptName), '/');
+
+    // Remove /public or subfolders of /public to find root base directory
+    $base = '';
+    if (($pos = strpos($scriptName, '/public/')) !== false) {
+        $base = substr($scriptName, 0, $pos);
+    } elseif ($dirName === '/public' || substr($dirName, -7) === '/public') {
+        $base = substr($dirName, 0, -7);
+    } elseif ($dirName !== '' && $dirName !== '/' && $dirName !== '\\') {
+        $base = $dirName;
     }
+
     $cleanPath = ltrim($path, '/');
-    return $base . '/' . $cleanPath;
+    return ($base === '' ? '' : $base) . '/' . $cleanPath;
 }
