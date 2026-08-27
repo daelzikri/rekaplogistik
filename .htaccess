@@ -1,0 +1,27 @@
+# Hostinger / Apache Root Configuration
+# Sistem Stok & Serah Terima Barang Logistik
+
+DirectoryIndex index.php public/index.php
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /
+
+    # Prevent direct access to dot files
+    RewriteRule ^\.(.*)$ - [F]
+
+    # If root URL is requested, serve public/index.php
+    RewriteRule ^$ public/index.php [L]
+
+    # Serve existing files directly
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+</IfModule>
+
+# Security Headers
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-Frame-Options "SAMEORIGIN"
+    Header set X-XSS-Protection "1; mode=block"
+</IfModule>
