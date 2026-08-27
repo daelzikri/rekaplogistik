@@ -1,0 +1,22 @@
+# Protect uploads directory from executing PHP scripts
+<IfModule mod_php7.c>
+    php_flag engine off
+</IfModule>
+<IfModule mod_php8.c>
+    php_flag engine off
+</IfModule>
+<IfModule mod_php.c>
+    php_flag engine off
+</IfModule>
+
+# Disable script execution
+RemoveHandler .php .phtml .php3 .php4 .php5 .php7 .phps .cgi .pl .asp .aspx .jsp
+SetHandler default-handler
+
+# Prevent directory browsing
+Options -Indexes
+
+# Allow access only to static media assets
+<FilesMatch "\.(jpg|jpeg|png|gif|webp|ico|svg|heic|heif)$">
+    Allow from all
+</FilesMatch>
