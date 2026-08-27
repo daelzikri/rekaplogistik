@@ -1,0 +1,16 @@
+# Local Server Database Config (Will NOT be overwritten on Git Push)
+config/database.local.php
+.env
+
+# Uploads directory contents (Keep folder structure & .htaccess/index.html)
+public/uploads/barang/*.webp
+public/uploads/transaksi/*.webp
+public/uploads/barang/*.jpg
+public/uploads/transaksi/*.jpg
+public/uploads/barang/*.png
+public/uploads/transaksi/*.png
+
+# Temp & OS Files
+.DS_Store
+Thumbs.db
+*.log
