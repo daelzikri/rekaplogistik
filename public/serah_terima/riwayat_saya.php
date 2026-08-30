@@ -24,8 +24,10 @@ if ($tglSelesai !== '') {
     $params['tgl_selesai'] = $tglSelesai;
 }
 if ($search !== '') {
-    $where[] = "(t.nama_penerima LIKE :q OR b.nama_barang LIKE :q OR t.catatan LIKE :q)";
-    $params['q'] = "%{$search}%";
+    $where[] = "(t.nama_penerima LIKE :q1 OR b.nama_barang LIKE :q2 OR t.catatan LIKE :q3)";
+    $params['q1'] = "%{$search}%";
+    $params['q2'] = "%{$search}%";
+    $params['q3'] = "%{$search}%";
 }
 
 $whereSql = implode(" AND ", $where);
@@ -226,7 +228,7 @@ $flash = get_flash_message();
                                         <?php if ($t['foto_utama']): ?>
                                             <img src="<?= base_url('public/' . $t['foto_utama']) ?>" alt="Bukti Foto"
                                                 class="w-full h-full object-cover cursor-pointer"
-                                                onclick='openProofGallery(<?= json_encode($allPhotos[$t['id']] ?? []) ?>, "Bukti Transaksi #<?= $t['id'] ?>")'>
+                                                onclick='openProofGallery(<?= e(json_encode($allPhotos[$t['id']] ?? [])) ?>, <?= e(json_encode("Bukti Transaksi #" . $t['id'])) ?>)'>
                                             <?php if ($t['total_bukti'] > 1): ?>
                                                 <span class="absolute bottom-0 right-0 bg-indigo-600 text-white text-[9px] font-bold px-1 rounded-tl-md">+<?= $t['total_bukti'] - 1 ?></span>
                                             <?php endif; ?>
@@ -288,7 +290,7 @@ $flash = get_flash_message();
                         </div>
 
                         <?php if ($t['foto_utama']): ?>
-                            <button onclick='openProofGallery(<?= json_encode($allPhotos[$t['id']] ?? []) ?>, "Bukti Transaksi #<?= $t['id'] ?>")'
+                            <button onclick='openProofGallery(<?= e(json_encode($allPhotos[$t['id']] ?? [])) ?>, <?= e(json_encode("Bukti Transaksi #" . $t['id'])) ?>)'
                                 class="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl flex items-center justify-center space-x-2">
                                 <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
                                 <span>Lihat <?= $t['total_bukti'] ?> Bukti Foto</span>

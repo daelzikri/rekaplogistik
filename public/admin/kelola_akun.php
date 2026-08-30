@@ -272,7 +272,7 @@ $flash = get_flash_message();
                                         </form>
                                     <?php endif; ?>
 
-                                    <button onclick='openResetPassModal(<?= json_encode($u) ?>)'
+                                    <button onclick='openResetPassModal(<?= e(json_encode($u)) ?>)'
                                         class="px-2 py-1 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded-md font-semibold text-[10px] hover:bg-indigo-500/20">
                                         Reset Pass
                                     </button>

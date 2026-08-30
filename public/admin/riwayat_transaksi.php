@@ -35,8 +35,10 @@ if ($penyerahId > 0) {
     $params['penyerah_id'] = $penyerahId;
 }
 if ($search !== '') {
-    $where[] = "(t.nama_penerima LIKE :q OR t.catatan LIKE :q OR b.nama_barang LIKE :q)";
-    $params['q'] = "%{$search}%";
+    $where[] = "(t.nama_penerima LIKE :q1 OR t.catatan LIKE :q2 OR b.nama_barang LIKE :q3)";
+    $params['q1'] = "%{$search}%";
+    $params['q2'] = "%{$search}%";
+    $params['q3'] = "%{$search}%";
 }
 
 $whereSql = implode(" AND ", $where);
@@ -231,7 +233,7 @@ $flash = get_flash_message();
                                             <?php if ($t['foto_utama']): ?>
                                                 <img src="<?= base_url('public/' . $t['foto_utama']) ?>" alt="Bukti Foto"
                                                     class="w-full h-full object-cover cursor-pointer"
-                                                    onclick='openProofGallery(<?= json_encode($allPhotos[$t['id']] ?? []) ?>, "Bukti Serah Terima #<?= $t['id'] ?>")'>
+                                                    onclick='openProofGallery(<?= e(json_encode($allPhotos[$t['id']] ?? [])) ?>, <?= e(json_encode("Bukti Serah Terima #" . $t['id'])) ?>)'>
                                                 <?php if ($t['total_bukti'] > 1): ?>
                                                     <span class="absolute bottom-0 right-0 bg-indigo-600 text-white text-[9px] font-bold px-1 rounded-tl-md">+<?= $t['total_bukti'] - 1 ?></span>
                                                 <?php endif; ?>
