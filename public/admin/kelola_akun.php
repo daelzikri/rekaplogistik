@@ -48,6 +48,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 exit;
             }
         }
+    } elseif ($action === 'edit') {
+        $targetId = (int)($_POST['target_id'] ?? 0);
+        $nama     = trim($_POST['nama'] ?? '');
+        $username = strtolower(trim($_POST['username'] ?? ''));
+        $role     = $_POST['role'] ?? 'pekerja';
+        $password = $_POST['password'] ?? '';
+
+        if ($targetId <= 0 || empty($nama) || empty($username)) {
+            set_flash_message('error', 'Nama lengkap dan username tidak boleh kosong.');
+        } elseif (!in_array($role, ['admin', 'pekerja'], true)) {
+            set_flash_message('error', 'Role user tidak valid.');
+        } else {
+            // Check username uniqueness (excluding current target user ID)
+            $uStmt = $db->prepare("SELECT COUNT(*) FROM users WHERE username = :u AND id != :id");
+            $uStmt->execute(['u' => $username, 'id' => $targetId]);
+            if ((int)$uStmt->fetchColumn() > 0) {
+                set_flash_message('error', "Username '{$username}' sudah digunakan oleh akun lain.");
+            } else {
+                if (!empty($password)) {
+                    $hash = password_hash($password, PASSWORD_BCRYPT);
+                    $upStmt = $db->prepare("UPDATE users SET nama = :nama, username = :u, role = :role, password_hash = :hash, failed_login_count = 0, locked_until = NULL WHERE id = :id");
+                    $upStmt->execute([
+                        'nama' => $nama,
+                        'u'    => $username,
+                        'role' => $role,
+                        'hash' => $hash,
+                        'id'   => $targetId
+                    ]);
+                    $msgDetail = "nama, username, role, dan password";
+                } else {
+                    $upStmt = $db->prepare("UPDATE users SET nama = :nama, username = :u, role = :role WHERE id = :id");
+                    $upStmt->execute([
+                        'nama' => $nama,
+                        'u'    => $username,
+                        'role' => $role,
+                        'id'   => $targetId
+                    ]);
+                    $msgDetail = "nama, username, dan role";
+                }
+
+                write_audit_log($db, $user['id'], 'EDIT_AKUN_USER', "Mengubah data akun ID {$targetId}: {$msgDetail}.");
+                set_flash_message('success', "Data akun '{$nama}' ({$username}) berhasil diperbarui.");
+                header('Location: ' . base_url('public/admin/kelola_akun.php'));
+                exit;
+            }
+        }
     } elseif ($action === 'reset_password') {
         $targetId = (int)($_POST['target_id'] ?? 0);
         $newPass  = $_POST['new_password'] ?? '';
@@ -272,9 +318,10 @@ $flash = get_flash_message();
                                         </form>
                                     <?php endif; ?>
 
-                                    <button onclick='openResetPassModal(<?= e(json_encode($u)) ?>)'
-                                        class="px-2 py-1 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded-md font-semibold text-[10px] hover:bg-indigo-500/20">
-                                        Reset Pass
+                                    <button onclick='openEditUserModal(<?= e(json_encode($u)) ?>)'
+                                        class="px-2 py-1 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded-md font-semibold text-[10px] hover:bg-indigo-500/20 flex items-center space-x-1" title="Edit Nama, Username, Role & Password">
+                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                        <span>Edit Akun</span>
                                     </button>
                                 </div>
                             </td>
@@ -359,12 +406,71 @@ $flash = get_flash_message();
         </div>
     </div>
 
+    <!-- Modal Edit Akun & Password -->
+    <div id="editUserModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm hidden">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+                <h3 class="text-base font-bold text-white">Edit Data Akun & Password</h3>
+                <button onclick="closeEditUserModal()" class="text-slate-400 hover:text-white">&times;</button>
+            </div>
+            <form action="" method="POST" class="space-y-4">
+                <?= csrf_field() ?>
+                <input type="hidden" name="action" value="edit">
+                <input type="hidden" id="edit_target_id" name="target_id">
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 uppercase mb-1">Nama Lengkap *</label>
+                    <input type="text" id="edit_nama" name="nama" required placeholder="Nama Lengkap"
+                        class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 uppercase mb-1">Username *</label>
+                    <input type="text" id="edit_username" name="username" required placeholder="username"
+                        class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 uppercase mb-1">Role Akun *</label>
+                    <select id="edit_role" name="role" required class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500">
+                        <option value="pekerja">Pekerja Logistik</option>
+                        <option value="admin">Admin (CO Lapangan)</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 uppercase mb-1">Password Baru (Opsional)</label>
+                    <input type="password" id="edit_password" name="password" placeholder="Kosongkan jika tidak diubah"
+                        class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500">
+                    <p class="text-[11px] text-slate-500 mt-1">Kosongkan jika hanya ingin mengubah nama/role saja.</p>
+                </div>
+
+                <div class="flex justify-end space-x-2 pt-3 border-t border-slate-800">
+                    <button type="button" onclick="closeEditUserModal()" class="px-3 py-2 text-slate-400 text-xs">Batal</button>
+                    <button type="submit" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl">Simpan Perubahan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script>
         function openAddUserModal() {
             document.getElementById('addUserModal').classList.remove('hidden');
         }
         function closeAddUserModal() {
             document.getElementById('addUserModal').classList.add('hidden');
+        }
+
+        function openEditUserModal(u) {
+            document.getElementById('edit_target_id').value = u.id;
+            document.getElementById('edit_nama').value = u.nama;
+            document.getElementById('edit_username').value = u.username;
+            document.getElementById('edit_role').value = u.role;
+            document.getElementById('edit_password').value = '';
+            document.getElementById('editUserModal').classList.remove('hidden');
+        }
+        function closeEditUserModal() {
+            document.getElementById('editUserModal').classList.add('hidden');
         }
 
         function openResetPassModal(u) {
