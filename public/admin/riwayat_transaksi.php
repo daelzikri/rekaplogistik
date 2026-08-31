@@ -5,10 +5,100 @@
  */
 
 require_once __DIR__ . '/../middleware/auth.php';
+require_once __DIR__ . '/../../config/csrf.php';
 require_once __DIR__ . '/../includes/navbar.php';
 
 $user = require_auth();
 $db = get_db_connection();
+
+// Delete Transaction Handler (Reverts Stock Automatically)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'delete_transaksi') {
+    require_csrf_token();
+    $transaksiId = (int)($_POST['transaksi_id'] ?? 0);
+
+    if ($transaksiId <= 0) {
+        set_flash_message('error', 'ID transaksi tidak valid.');
+    } else {
+        try {
+            $db->beginTransaction();
+
+            // Fetch transaction
+            $tStmt = $db->prepare("
+                SELECT t.*, b.nama_barang, b.satuan
+                FROM transaksi t
+                JOIN barang b ON t.barang_id = b.id
+                WHERE t.id = :id FOR UPDATE
+            ");
+            $tStmt->execute(['id' => $transaksiId]);
+            $tx = $tStmt->fetch();
+
+            if (!$tx) {
+                throw new Exception('Data transaksi tidak ditemukan.');
+            }
+
+            // Lock & fetch current barang stock
+            $bLock = $db->prepare("SELECT id, stok_saat_ini FROM barang WHERE id = :id FOR UPDATE");
+            $bLock->execute(['id' => $tx['barang_id']]);
+            $barang = $bLock->fetch();
+
+            $stokLama = 0;
+            $stokBaru = 0;
+            if ($barang) {
+                $stokLama = (int)$barang['stok_saat_ini'];
+                $jumlah   = (int)$tx['jumlah'];
+
+                // Revert stock:
+                // If original was serah_terima (took stock out), deletion restores (+jumlah) stock back
+                // If original was pengembalian (returned stock in), deletion reverts (-jumlah) stock
+                if ($tx['tipe_transaksi'] === 'pengembalian') {
+                    $stokBaru = max(0, $stokLama - $jumlah);
+                } else {
+                    $stokBaru = $stokLama + $jumlah;
+                }
+
+                $upB = $db->prepare("UPDATE barang SET stok_saat_ini = :stok WHERE id = :id");
+                $upB->execute(['stok' => $stokBaru, 'id' => $tx['barang_id']]);
+            }
+
+            // Delete physical files
+            $fStmt = $db->prepare("SELECT file_path FROM foto_transaksi WHERE transaksi_id = :id");
+            $fStmt->execute(['id' => $transaksiId]);
+            $photos = $fStmt->fetchAll();
+
+            foreach ($photos as $p) {
+                $filePath = __DIR__ . '/../' . $p['file_path'];
+                if (file_exists($filePath)) {
+                    @unlink($filePath);
+                }
+            }
+
+            // Delete foto_transaksi and transaksi records
+            $delF = $db->prepare("DELETE FROM foto_transaksi WHERE transaksi_id = :id");
+            $delF->execute(['id' => $transaksiId]);
+
+            $delT = $db->prepare("DELETE FROM transaksi WHERE id = :id");
+            $delT->execute(['id' => $transaksiId]);
+
+            // Audit log
+            write_audit_log(
+                $db,
+                $user['id'],
+                'DELETE_TRANSAKSI',
+                "Menghapus transaksi #{$transaksiId} ('{$tx['nama_barang']}', {$tx['jumlah']} {$tx['satuan']}). Stok otomatis dikembalikan dari {$stokLama} ke {$stokBaru}."
+            );
+
+            $db->commit();
+            set_flash_message('success', "Transaksi #{$transaksiId} ('{$tx['nama_barang']}') berhasil dihapus. Sisa stok otomatis dikembalikan dari {$stokLama} menjadi {$stokBaru} {$tx['satuan']}.");
+        } catch (Exception $e) {
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            set_flash_message('error', 'Gagal menghapus transaksi: ' . $e->getMessage());
+        }
+    }
+    header('Location: ' . base_url('public/admin/riwayat_transaksi.php'));
+    exit;
+}
 
 // Filters
 $tglMulai      = trim($_GET['tgl_mulai'] ?? '');
@@ -217,6 +307,7 @@ $flash = get_flash_message();
                             <th class="py-3.5 px-4">Admin Pelapor</th>
                             <th class="py-3.5 px-4">Pihak Penerima/Pengembali</th>
                             <th class="py-3.5 px-4">Catatan</th>
+                            <th class="py-3.5 px-4 text-center">Aksi</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-800/60">
@@ -280,6 +371,17 @@ $flash = get_flash_message();
                                 <td class="py-3 px-4 max-w-xs truncate text-slate-400">
                                     <?= e($t['catatan'] ?: '-') ?>
                                 </td>
+                                <!-- Aksi Hapus -->
+                                <td class="py-3 px-4 text-center">
+                                    <form action="" method="POST" onsubmit="return confirm('Apakah Anda yakin ingin menghapus transaksi ini? Sisa stok barang akan dikembalikan/disesuaikan secara otomatis!');">
+                                        <?= csrf_field() ?>
+                                        <input type="hidden" name="action" value="delete_transaksi">
+                                        <input type="hidden" name="transaksi_id" value="<?= $t['id'] ?>">
+                                        <button type="submit" class="px-2.5 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-[11px] font-semibold transition" title="Hapus Transaksi & Kembalikan Stok">
+                                            Hapus
+                                        </button>
+                                    </form>
+                                </td>
                             </tr>
                         <?php endforeach; ?>
                     </tbody>
@@ -323,9 +425,16 @@ $flash = get_flash_message();
                                 <span>Pelapor: <strong class="text-slate-200"><?= e($t['penyerah_nama']) ?></strong></span>
                                 <span>Penerima: <strong class="text-indigo-300"><?= e($t['nama_penerima']) ?></strong></span>
                             </div>
-                            <div class="flex items-center justify-between text-[11px] text-slate-500 border-t border-slate-800/50 pt-1 mt-1">
+                            <div class="flex items-center justify-between text-[11px] text-slate-500 border-t border-slate-800/50 pt-2 mt-1">
                                 <span>Stok: <?= number_format($t['stok_sebelum']) ?> &rarr; <strong class="text-slate-200"><?= number_format($t['stok_sesudah']) ?></strong></span>
-                                <span class="truncate max-w-[180px]"><?= e($t['catatan'] ?: 'Tidak ada catatan') ?></span>
+                                <form action="" method="POST" onsubmit="return confirm('Apakah Anda yakin ingin menghapus transaksi ini? Sisa stok barang akan dikembalikan/disesuaikan secara otomatis!');" class="inline">
+                                    <?= csrf_field() ?>
+                                    <input type="hidden" name="action" value="delete_transaksi">
+                                    <input type="hidden" name="transaksi_id" value="<?= $t['id'] ?>">
+                                    <button type="submit" class="px-2 py-0.5 rounded-md bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-[10px] font-semibold transition">
+                                        Hapus Transaksi
+                                    </button>
+                                </form>
                             </div>
                         </div>
                     </div>
