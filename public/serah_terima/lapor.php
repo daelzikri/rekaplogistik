@@ -159,16 +159,14 @@ $flash = get_flash_message();
     <main class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full">
 
         <!-- Form Navigation Switch Tabs -->
-        <div class="flex items-center space-x-2 mb-6 bg-slate-900/80 p-1.5 rounded-2xl border border-slate-800">
+        <div class="flex items-center gap-2 mb-6 bg-slate-900/80 p-1.5 rounded-2xl border border-slate-800">
             <a href="<?= base_url('public/serah_terima/lapor.php') ?>"
-                class="flex-1 py-2.5 px-4 text-center rounded-xl text-xs font-bold bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 flex items-center justify-center space-x-2 shadow-lg shadow-indigo-950/40">
-                <svg class="w-4 h-4 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
-                <span>Serah Terima (Barang Keluar)</span>
+                class="flex-1 py-2.5 px-2 sm:px-4 text-center rounded-xl text-xs font-bold bg-indigo-600/30 text-indigo-300 border border-indigo-500/50 shadow-md">
+                <span>Barang Keluar (Serah Terima)</span>
             </a>
             <a href="<?= base_url('public/serah_terima/pengembalian.php') ?>"
-                class="flex-1 py-2.5 px-4 text-center rounded-xl text-xs font-semibold text-slate-400 hover:text-white transition flex items-center justify-center space-x-2">
-                <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-                <span>Pengembalian Barang (Stok Masuk)</span>
+                class="flex-1 py-2.5 px-2 sm:px-4 text-center rounded-xl text-xs font-semibold text-slate-400 hover:text-white transition">
+                <span>Barang Masuk (Pengembalian)</span>
             </a>
         </div>
 

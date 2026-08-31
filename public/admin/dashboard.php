@@ -85,19 +85,19 @@ $flash = get_flash_message();
             <div>
                 <h1 class="text-2xl font-extrabold text-white tracking-tight">Dashboard Realtime Logistik</h1>
                 <p class="text-xs text-slate-300 mt-1 max-w-xl">
-                    Pantau sisa stok barang, transaksi serah terima realtime dari seluruh anggota pekerja, dan peringatan restock barang.
+                    Pantau sisa stok barang, transaksi serah terima barang keluar & pengembalian barang masuk secara realtime.
                 </p>
             </div>
             <div class="flex items-center space-x-3 shrink-0">
                 <a href="<?= base_url('public/serah_terima/lapor.php') ?>"
                     class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs rounded-xl shadow-lg shadow-emerald-600/30 flex items-center space-x-2 transition">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
-                    <span>Lapor Serah Terima</span>
+                    <span>Input Transaksi (Lapor)</span>
                 </a>
-                <a href="<?= base_url('public/admin/restock.php') ?>"
+                <a href="<?= base_url('public/admin/master_barang.php') ?>"
                     class="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs rounded-xl shadow-lg shadow-indigo-600/30 flex items-center space-x-2 transition">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                    <span>Restock Barang</span>
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                    <span>Master Barang</span>
                 </a>
             </div>
         </div>
@@ -179,9 +179,6 @@ $flash = get_flash_message();
                                         <div class="font-mono font-bold text-xs text-rose-400">
                                             <?= number_format($sk['stok_saat_ini']) ?> <?= e($sk['satuan']) ?>
                                         </div>
-                                        <a href="<?= base_url('public/admin/restock.php') ?>" class="text-[10px] text-indigo-400 hover:underline font-semibold">
-                                            + Restock
-                                        </a>
                                     </div>
                                 </div>
                             <?php endforeach; ?>

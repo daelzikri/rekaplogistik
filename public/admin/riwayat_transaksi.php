@@ -203,89 +203,134 @@ $flash = get_flash_message();
                     Tidak ditemukan data transaksi yang sesuai filter.
                 </div>
             <?php else: ?>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left text-xs text-slate-300">
-                        <thead class="bg-slate-950 text-slate-400 uppercase tracking-wider font-semibold border-b border-slate-800">
-                            <tr>
-                                <th class="py-3.5 px-4 text-center">Bukti Foto</th>
-                                <th class="py-3.5 px-4">Tipe Transaksi</th>
-                                <th class="py-3.5 px-4">Waktu</th>
-                                <th class="py-3.5 px-4">Barang</th>
-                                <th class="py-3.5 px-4 text-center">Jumlah</th>
-                                <th class="py-3.5 px-4 text-center">Audit Stok</th>
-                                <th class="py-3.5 px-4">Admin Pelapor</th>
-                                <th class="py-3.5 px-4">Pihak Penerima/Pengembali</th>
-                                <th class="py-3.5 px-4">Catatan</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-slate-800/60">
-                            <?php foreach ($transaksiList as $t):
-                                $isReturn = (isset($t['tipe_transaksi']) && $t['tipe_transaksi'] === 'pengembalian');
-                            ?>
-                                <tr class="hover:bg-slate-800/30 transition">
-                                    <!-- Bukti Foto -->
-                                    <td class="py-3 px-4 text-center">
-                                        <div class="w-12 h-12 rounded-xl bg-slate-950 border border-slate-800 overflow-hidden mx-auto relative group">
-                                            <?php if ($t['foto_utama']): ?>
-                                                <img src="<?= base_url('public/' . $t['foto_utama']) ?>" alt="Bukti Foto"
-                                                    class="w-full h-full object-cover cursor-pointer"
-                                                    onclick='openProofGallery(<?= e(json_encode($allPhotos[$t['id']] ?? [])) ?>, <?= e(json_encode("Bukti Transaksi #" . $t['id'])) ?>)'>
-                                                <?php if ($t['total_bukti'] > 1): ?>
-                                                    <span class="absolute bottom-0 right-0 bg-indigo-600 text-white text-[9px] font-bold px-1 rounded-tl-md">+<?= $t['total_bukti'] - 1 ?></span>
-                                                <?php endif; ?>
-                                            <?php else: ?>
-                                                <div class="w-full h-full flex items-center justify-center text-slate-600">-</div>
+                <!-- Desktop Table View -->
+            <div class="hidden lg:block overflow-x-auto">
+                <table class="w-full text-left text-xs text-slate-300">
+                    <thead class="bg-slate-950 text-slate-400 uppercase tracking-wider font-semibold border-b border-slate-800">
+                        <tr>
+                            <th class="py-3.5 px-4 text-center">Bukti Foto</th>
+                            <th class="py-3.5 px-4">Tipe Transaksi</th>
+                            <th class="py-3.5 px-4">Waktu</th>
+                            <th class="py-3.5 px-4">Barang</th>
+                            <th class="py-3.5 px-4 text-center">Jumlah</th>
+                            <th class="py-3.5 px-4 text-center">Audit Stok</th>
+                            <th class="py-3.5 px-4">Admin Pelapor</th>
+                            <th class="py-3.5 px-4">Pihak Penerima/Pengembali</th>
+                            <th class="py-3.5 px-4">Catatan</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-800/60">
+                        <?php foreach ($transaksiList as $t):
+                            $isReturn = (isset($t['tipe_transaksi']) && $t['tipe_transaksi'] === 'pengembalian');
+                        ?>
+                            <tr class="hover:bg-slate-800/30 transition">
+                                <!-- Bukti Foto -->
+                                <td class="py-3 px-4 text-center">
+                                    <div class="w-12 h-12 rounded-xl bg-slate-950 border border-slate-800 overflow-hidden mx-auto relative group">
+                                        <?php if ($t['foto_utama']): ?>
+                                            <img src="<?= base_url('public/' . $t['foto_utama']) ?>" alt="Bukti Foto"
+                                                class="w-full h-full object-cover cursor-pointer"
+                                                onclick='openProofGallery(<?= e(json_encode($allPhotos[$t['id']] ?? [])) ?>, <?= e(json_encode("Bukti Transaksi #" . $t['id'])) ?>)'>
+                                            <?php if ($t['total_bukti'] > 1): ?>
+                                                <span class="absolute bottom-0 right-0 bg-indigo-600 text-white text-[9px] font-bold px-1 rounded-tl-md">+<?= $t['total_bukti'] - 1 ?></span>
                                             <?php endif; ?>
-                                        </div>
-                                    </td>
-                                    <!-- Tipe Transaksi -->
-                                    <td class="py-3 px-4 whitespace-nowrap">
-                                        <?php if ($isReturn): ?>
-                                            <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                                                <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-                                                Pengembalian
-                                            </span>
                                         <?php else: ?>
-                                            <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20">
-                                                <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
-                                                Serah Terima
-                                            </span>
+                                            <div class="w-full h-full flex items-center justify-center text-slate-600">-</div>
                                         <?php endif; ?>
-                                    </td>
-                                    <!-- Waktu -->
-                                    <td class="py-3 px-4 whitespace-nowrap text-slate-400">
-                                        <?= format_tanggal_indonesia($t['waktu_transaksi']) ?>
-                                    </td>
-                                    <!-- Barang -->
-                                    <td class="py-3 px-4 font-bold text-white text-sm">
-                                        <?= e($t['nama_barang']) ?>
-                                    </td>
-                                    <!-- Jumlah -->
-                                    <td class="py-3 px-4 text-center font-mono font-extrabold text-sm <?= $isReturn ? 'text-emerald-400' : 'text-rose-400' ?>">
-                                        <?= $isReturn ? '+' : '-' ?><?= number_format($t['jumlah']) ?> <?= e($t['satuan']) ?>
-                                    </td>
-                                    <!-- Audit Stok -->
-                                    <td class="py-3 px-4 text-center font-mono text-xs text-slate-400">
-                                        <?= number_format($t['stok_sebelum']) ?> &rarr; <strong class="text-white"><?= number_format($t['stok_sesudah']) ?></strong>
-                                    </td>
-                                    <!-- Pelapor -->
-                                    <td class="py-3 px-4">
-                                        <div class="font-semibold text-slate-200"><?= e($t['penyerah_nama']) ?></div>
-                                        <div class="text-[10px] text-indigo-400 capitalize">Admin</div>
-                                    </td>
-                                    <!-- Penerima/Pengembali -->
-                                    <td class="py-3 px-4 font-bold text-indigo-300">
-                                        <?= e($t['nama_penerima']) ?>
-                                    </td>
-                                    <!-- Catatan -->
-                                    <td class="py-3 px-4 max-w-xs truncate text-slate-400">
-                                        <?= e($t['catatan'] ?: '-') ?>
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
+                                    </div>
+                                </td>
+                                <!-- Tipe Transaksi -->
+                                <td class="py-3 px-4 whitespace-nowrap">
+                                    <?php if ($isReturn): ?>
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                            Pengembalian
+                                        </span>
+                                    <?php else: ?>
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                                            Serah Terima
+                                        </span>
+                                    <?php endif; ?>
+                                </td>
+                                <!-- Waktu -->
+                                <td class="py-3 px-4 whitespace-nowrap text-slate-400">
+                                    <?= format_tanggal_indonesia($t['waktu_transaksi']) ?>
+                                </td>
+                                <!-- Barang -->
+                                <td class="py-3 px-4 font-bold text-white text-sm">
+                                    <?= e($t['nama_barang']) ?>
+                                </td>
+                                <!-- Jumlah -->
+                                <td class="py-3 px-4 text-center font-mono font-extrabold text-sm <?= $isReturn ? 'text-emerald-400' : 'text-rose-400' ?>">
+                                    <?= $isReturn ? '+' : '-' ?><?= number_format($t['jumlah']) ?> <?= e($t['satuan']) ?>
+                                </td>
+                                <!-- Audit Stok -->
+                                <td class="py-3 px-4 text-center font-mono text-xs text-slate-400">
+                                    <?= number_format($t['stok_sebelum']) ?> &rarr; <strong class="text-white"><?= number_format($t['stok_sesudah']) ?></strong>
+                                </td>
+                                <!-- Pelapor -->
+                                <td class="py-3 px-4">
+                                    <div class="font-semibold text-slate-200"><?= e($t['penyerah_nama']) ?></div>
+                                    <div class="text-[10px] text-indigo-400 capitalize">Admin</div>
+                                </td>
+                                <!-- Penerima/Pengembali -->
+                                <td class="py-3 px-4 font-bold text-indigo-300">
+                                    <?= e($t['nama_penerima']) ?>
+                                </td>
+                                <!-- Catatan -->
+                                <td class="py-3 px-4 max-w-xs truncate text-slate-400">
+                                    <?= e($t['catatan'] ?: '-') ?>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Mobile Cards View -->
+            <div class="lg:hidden divide-y divide-slate-800/80">
+                <?php foreach ($transaksiList as $t):
+                    $isReturn = (isset($t['tipe_transaksi']) && $t['tipe_transaksi'] === 'pengembalian');
+                ?>
+                    <div class="p-4 space-y-3">
+                        <div class="flex items-start justify-between">
+                            <div class="flex items-center space-x-3">
+                                <div class="w-12 h-12 rounded-xl bg-slate-950 border border-slate-800 overflow-hidden shrink-0 relative">
+                                    <?php if ($t['foto_utama']): ?>
+                                        <img src="<?= base_url('public/' . $t['foto_utama']) ?>" alt="Bukti Foto"
+                                            class="w-full h-full object-cover cursor-pointer"
+                                            onclick='openProofGallery(<?= e(json_encode($allPhotos[$t['id']] ?? [])) ?>, <?= e(json_encode("Bukti Transaksi #" . $t['id'])) ?>)'>
+                                    <?php else: ?>
+                                        <div class="w-full h-full flex items-center justify-center text-slate-600 text-xs">-</div>
+                                    <?php endif; ?>
+                                </div>
+                                <div>
+                                    <h4 class="font-bold text-white text-sm"><?= e($t['nama_barang']) ?></h4>
+                                    <div class="text-[11px] text-slate-400 mt-0.5"><?= format_tanggal_indonesia($t['waktu_transaksi']) ?></div>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <div class="font-mono font-extrabold text-sm <?= $isReturn ? 'text-emerald-400' : 'text-rose-400' ?>">
+                                    <?= $isReturn ? '+' : '-' ?><?= number_format($t['jumlah']) ?> <?= e($t['satuan']) ?>
+                                </div>
+                                <span class="inline-block mt-1 px-2 py-0.5 rounded-md text-[9px] font-bold <?= $isReturn ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border border-rose-500/20' ?>">
+                                    <?= $isReturn ? 'Pengembalian' : 'Serah Terima' ?>
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/80 text-xs space-y-1">
+                            <div class="flex items-center justify-between text-slate-400">
+                                <span>Pelapor: <strong class="text-slate-200"><?= e($t['penyerah_nama']) ?></strong></span>
+                                <span>Penerima: <strong class="text-indigo-300"><?= e($t['nama_penerima']) ?></strong></span>
+                            </div>
+                            <div class="flex items-center justify-between text-[11px] text-slate-500 border-t border-slate-800/50 pt-1 mt-1">
+                                <span>Stok: <?= number_format($t['stok_sebelum']) ?> &rarr; <strong class="text-slate-200"><?= number_format($t['stok_sesudah']) ?></strong></span>
+                                <span class="truncate max-w-[180px]"><?= e($t['catatan'] ?: 'Tidak ada catatan') ?></span>
+                            </div>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            </div>
             <?php endif; ?>
         </div>
 
