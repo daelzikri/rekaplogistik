@@ -157,8 +157,6 @@ $flash = get_flash_message();
                             <option value="<?= $po['id'] ?>" <?= $penyerahId == $po['id'] ? 'selected' : '' ?>><?= e($po['nama']) ?></option>
                         <?php endforeach; ?>
                     </select>
-                </div>
-
                 <div class="flex items-center space-x-2">
                     <button type="submit" class="flex-1 py-2 px-4 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl transition">
                         Filter Data
@@ -168,6 +166,34 @@ $flash = get_flash_message();
                     </a>
                 </div>
             </form>
+        </div>
+
+        <!-- Quick Filter Chips -->
+        <div class="flex flex-wrap items-center gap-2">
+            <span class="text-xs text-slate-400 font-semibold uppercase tracking-wider mr-1">Quick Filter:</span>
+
+            <a href="<?= base_url('public/admin/riwayat_transaksi.php') ?>"
+                class="px-3 py-1.5 rounded-xl text-xs font-semibold border transition flex items-center space-x-1.5 <?= (empty($penyerahId) && empty($tipeTransaksi)) ? 'bg-indigo-600/30 text-indigo-300 border-indigo-500/50 shadow-md font-bold' : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white' ?>">
+                <span>Semua Transaksi</span>
+            </a>
+
+            <a href="<?= base_url('public/admin/riwayat_transaksi.php?penyerah_id=' . $user['id']) ?>"
+                class="px-3 py-1.5 rounded-xl text-xs font-semibold border transition flex items-center space-x-1.5 <?= ($penyerahId === (int)$user['id']) ? 'bg-indigo-600/30 text-indigo-300 border-indigo-500/50 shadow-md font-bold' : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white' ?>">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                <span>Transaksi Saya</span>
+            </a>
+
+            <a href="<?= base_url('public/admin/riwayat_transaksi.php?tipe=serah_terima') ?>"
+                class="px-3 py-1.5 rounded-xl text-xs font-semibold border transition flex items-center space-x-1.5 <?= ($tipeTransaksi === 'serah_terima') ? 'bg-rose-500/20 text-rose-300 border-rose-500/40 shadow-md font-bold' : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white' ?>">
+                <svg class="w-3.5 h-3.5 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+                <span>Barang Keluar (Serah Terima)</span>
+            </a>
+
+            <a href="<?= base_url('public/admin/riwayat_transaksi.php?tipe=pengembalian') ?>"
+                class="px-3 py-1.5 rounded-xl text-xs font-semibold border transition flex items-center space-x-1.5 <?= ($tipeTransaksi === 'pengembalian') ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-md font-bold' : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white' ?>">
+                <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                <span>Barang Masuk (Pengembalian)</span>
+            </a>
         </div>
 
         <!-- Table Container -->

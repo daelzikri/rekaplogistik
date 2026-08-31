@@ -1,35 +1,20 @@
 <?php
 /**
- * Navigation Bar Component dengan Dynamic Active State & Mobile Optimization
- * @param string $activeKey Identifier halaman aktif (katalog|lapor|pengembalian|riwayat_saya|dashboard|master_barang|riwayat_transaksi|kelola_akun)
+ * Navigation Bar Component dengan Streamlined Menu & Mobile Active Highlight
+ * @param string $activeKey Identifier halaman aktif (dashboard|master_barang|lapor|pengembalian|riwayat_transaksi|riwayat_saya|kelola_akun)
  * @param array $user Data user authenticated saat ini
  */
 function render_navbar(string $activeKey, array $user): void {
+    // Alias active keys for merged/sub features
+    if ($activeKey === 'pengembalian') {
+        $activeKey = 'lapor';
+    } elseif ($activeKey === 'riwayat_saya') {
+        $activeKey = 'riwayat_transaksi';
+    } elseif ($activeKey === 'katalog') {
+        $activeKey = 'master_barang';
+    }
+
     $navItems = [
-        [
-            'key'   => 'katalog',
-            'label' => 'Katalog Barang',
-            'url'   => base_url('public/katalog.php'),
-            'icon'  => '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>'
-        ],
-        [
-            'key'   => 'lapor',
-            'label' => 'Serah Terima',
-            'url'   => base_url('public/serah_terima/lapor.php'),
-            'icon'  => '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>'
-        ],
-        [
-            'key'   => 'pengembalian',
-            'label' => 'Pengembalian',
-            'url'   => base_url('public/serah_terima/pengembalian.php'),
-            'icon'  => '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>'
-        ],
-        [
-            'key'   => 'riwayat_saya',
-            'label' => 'Riwayat Saya',
-            'url'   => base_url('public/serah_terima/riwayat_saya.php'),
-            'icon'  => '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>'
-        ],
         [
             'key'   => 'dashboard',
             'label' => 'Dashboard',
@@ -43,8 +28,14 @@ function render_navbar(string $activeKey, array $user): void {
             'icon'  => '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>'
         ],
         [
+            'key'   => 'lapor',
+            'label' => 'Input Transaksi',
+            'url'   => base_url('public/serah_terima/lapor.php'),
+            'icon'  => '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>'
+        ],
+        [
             'key'   => 'riwayat_transaksi',
-            'label' => 'Semua Riwayat',
+            'label' => 'Riwayat Transaksi',
             'url'   => base_url('public/admin/riwayat_transaksi.php'),
             'icon'  => '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>'
         ],
@@ -62,7 +53,7 @@ function render_navbar(string $activeKey, array $user): void {
             <div class="flex items-center justify-between h-16">
 
                 <!-- Brand Logo & Badge -->
-                <a href="<?= base_url('public/katalog.php') ?>" class="flex items-center space-x-3 group">
+                <a href="<?= base_url('public/admin/dashboard.php') ?>" class="flex items-center space-x-3 group">
                     <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-indigo-500 flex items-center justify-center text-white font-bold shadow-lg shadow-indigo-500/25 group-hover:scale-105 transition">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
@@ -79,8 +70,8 @@ function render_navbar(string $activeKey, array $user): void {
                     <?php foreach ($navItems as $item):
                         $isActive = ($activeKey === $item['key']);
                         $class = $isActive
-                            ? 'px-3 py-2 rounded-xl text-white bg-indigo-600/30 text-indigo-300 border border-indigo-500/50 shadow-md font-bold flex items-center space-x-1.5'
-                            : 'px-3 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800/80 transition duration-150 flex items-center space-x-1.5';
+                            ? 'px-3.5 py-2 rounded-xl text-white bg-indigo-600/30 text-indigo-300 border border-indigo-500/50 shadow-md font-bold flex items-center space-x-2'
+                            : 'px-3.5 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800/80 transition duration-150 flex items-center space-x-2';
                     ?>
                         <a href="<?= $item['url'] ?>" class="<?= $class ?>">
                             <?= $item['icon'] ?>
@@ -105,7 +96,7 @@ function render_navbar(string $activeKey, array $user): void {
         </div>
 
         <!-- Mobile Scrollable Active Navigation Bar -->
-        <div class="lg:hidden border-t border-slate-800/80 bg-slate-950/90 px-3 py-2 overflow-x-auto no-scrollbar flex items-center space-x-2 text-xs">
+        <div class="lg:hidden border-t border-slate-800/80 bg-slate-950/90 px-3 py-2 overflow-x-auto no-scrollbar flex items-center justify-around text-xs">
             <?php foreach ($navItems as $item):
                 $isActive = ($activeKey === $item['key']);
                 $mClass = $isActive
