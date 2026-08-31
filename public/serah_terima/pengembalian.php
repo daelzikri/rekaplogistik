@@ -1,7 +1,7 @@
 <?php
 /**
- * Form & Processor Lapor Serah Terima Barang (Logika Inti §5)
- * Dapat diakses oleh Admin dan Pekerja Logistik
+ * Form & Processor Pengembalian Barang (Stok Masuk Realtime)
+ * Sistem Rekap Logistik Barang
  */
 
 require_once __DIR__ . '/../middleware/auth.php';
@@ -22,20 +22,20 @@ $barangOptions = $barangOptionsStmt->fetchAll();
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     require_csrf_token();
 
-    $barangId     = (int)($_POST['barang_id'] ?? 0);
-    $jumlah       = (int)($_POST['jumlah'] ?? 0);
-    $namaPenerima = trim($_POST['nama_penerima'] ?? '');
-    $catatan      = trim($_POST['catatan'] ?? '');
+    $barangId       = (int)($_POST['barang_id'] ?? 0);
+    $jumlah         = (int)($_POST['jumlah'] ?? 0);
+    $namaPengembali = trim($_POST['nama_penerima'] ?? ''); // Saved into nama_penerima field for consistency
+    $catatan        = trim($_POST['catatan'] ?? '');
 
     // Validation
     if ($barangId <= 0) {
-        $error = 'Silakan pilih barang yang akan diserahkan.';
+        $error = 'Silakan pilih barang yang dikembalikan.';
     } elseif ($jumlah <= 0) {
-        $error = 'Jumlah barang yang diserahkan harus lebih dari 0.';
-    } elseif (mb_strlen($namaPenerima) < 2) {
-        $error = 'Nama penerima wajib diisi secara jelas (minimal 2 karakter).';
+        $error = 'Jumlah barang yang dikembalikan harus lebih dari 0.';
+    } elseif (mb_strlen($namaPengembali) < 2) {
+        $error = 'Nama pengembali barang wajib diisi (minimal 2 karakter).';
     } elseif (empty($_FILES['bukti_foto']['name'][0])) {
-        $error = 'Bukti foto penyerahan wajib diunggah.';
+        $error = 'Bukti foto pengembalian wajib diunggah.';
     } else {
         $uploadedPhotos = [];
         try {
@@ -45,7 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // 2. Begin Database Transaction
             $db->beginTransaction();
 
-            // 3. Row Lock Item to prevent race condition / concurrent negative stock
+            // 3. Row Lock Item to prevent race conditions
             $lockStmt = $db->prepare("SELECT id, nama_barang, satuan, stok_saat_ini FROM barang WHERE id = :id FOR UPDATE");
             $lockStmt->execute(['id' => $barangId]);
             $barang = $lockStmt->fetch();
@@ -55,38 +55,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $stokSebelum = (int)$barang['stok_saat_ini'];
+            $stokSesudah = $stokSebelum + $jumlah;
 
-            // 4. Validate stock availability inside lock transaction
-            if ($jumlah > $stokSebelum) {
-                throw new Exception("Stok barang '{$barang['nama_barang']}' tidak mencukupi. Sisa stok saat ini: {$stokSebelum} {$barang['satuan']}. (Permintaan: {$jumlah} {$barang['satuan']})");
-            }
-
-            $stokSesudah = $stokSebelum - $jumlah;
-
-            // 5. Update Stock in Barang Table
-            $upStmt = $db->prepare("UPDATE barang SET stok_saat_ini = :sisa WHERE id = :id");
+            // 4. Update Stock in Barang Table (Increase stock)
+            $upStmt = $db->prepare("UPDATE barang SET stok_saat_ini = :total WHERE id = :id");
             $upStmt->execute([
-                'sisa' => $stokSesudah,
-                'id'   => $barangId
+                'total' => $stokSesudah,
+                'id'    => $barangId
             ]);
 
-            // 6. Insert Log Transaksi (tipe_transaksi = serah_terima)
+            // 5. Insert Log Transaksi with tipe_transaksi = 'pengembalian'
             $tStmt = $db->prepare("
                 INSERT INTO transaksi (barang_id, tipe_transaksi, penyerah_id, nama_penerima, jumlah, stok_sebelum, stok_sesudah, catatan, waktu_transaksi)
-                VALUES (:b_id, 'serah_terima', :p_id, :penerima, :jumlah, :stok_seb, :stok_ses, :catatan, NOW())
+                VALUES (:b_id, 'pengembalian', :p_id, :pengembali, :jumlah, :stok_seb, :stok_ses, :catatan, NOW())
             ");
             $tStmt->execute([
-                'b_id'     => $barangId,
-                'p_id'     => $user['id'],
-                'penerima' => $namaPenerima,
-                'jumlah'   => $jumlah,
-                'stok_seb' => $stokSebelum,
-                'stok_ses' => $stokSesudah,
-                'catatan'  => $catatan
+                'b_id'       => $barangId,
+                'p_id'       => $user['id'],
+                'pengembali' => $namaPengembali,
+                'jumlah'     => $jumlah,
+                'stok_seb'   => $stokSebelum,
+                'stok_ses'   => $stokSesudah,
+                'catatan'    => $catatan
             ]);
             $transaksiId = $db->lastInsertId();
 
-            // 7. Insert Foto Transaksi Records
+            // 6. Insert Foto Transaksi Records
             $ftStmt = $db->prepare("INSERT INTO foto_transaksi (transaksi_id, file_path, format_asli, nama_file_server) VALUES (:t_id, :path, :fmt, :name)");
             foreach ($uploadedPhotos as $f) {
                 $ftStmt->execute([
@@ -97,18 +91,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ]);
             }
 
-            // 8. Write Audit Log
+            // 7. Write Audit Log
             write_audit_log(
                 $db,
                 $user['id'],
-                'SERAH_TERIMA_BARANG',
-                "Menyerahkan {$jumlah} {$barang['satuan']} '{$barang['nama_barang']}' kepada '{$namaPenerima}'. Sisa stok: {$stokSesudah} {$barang['satuan']}."
+                'PENGEMBALIAN_BARANG',
+                "Menerima pengembalian +{$jumlah} {$barang['satuan']} '{$barang['nama_barang']}' dari '{$namaPengembali}'. Stok terkini: {$stokSesudah} {$barang['satuan']}."
             );
 
-            // 9. Commit Transaction
+            // 8. Commit Transaction
             $db->commit();
 
-            set_flash_message('success', "Laporan serah terima berhasil dikirim! {$jumlah} {$barang['satuan']} '{$barang['nama_barang']}' diserahkan kepada '{$namaPenerima}'. Sisa stok terkini: {$stokSesudah} {$barang['satuan']}.");
+            set_flash_message('success', "Laporan pengembalian berhasil disimpan! +{$jumlah} {$barang['satuan']} '{$barang['nama_barang']}' dari '{$namaPengembali}' dikembalikan ke stok. Total stok terkini: {$stokSesudah} {$barang['satuan']}.");
             header('Location: ' . base_url('public/serah_terima/riwayat_saya.php'));
             exit;
 
@@ -133,7 +127,7 @@ $flash = get_flash_message();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Form Lapor Serah Terima Barang</title>
+    <title>Form Lapor Pengembalian Barang - Sistem Logistik</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -153,7 +147,7 @@ $flash = get_flash_message();
 </head>
 <body class="min-h-full bg-slate-950 text-slate-100 flex flex-col font-sans">
 
-    <?php render_navbar('lapor', $user); ?>
+    <?php render_navbar('pengembalian', $user); ?>
 
     <!-- Main Content Form -->
     <main class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full">
@@ -161,12 +155,12 @@ $flash = get_flash_message();
         <!-- Form Navigation Switch Tabs -->
         <div class="flex items-center space-x-2 mb-6 bg-slate-900/80 p-1.5 rounded-2xl border border-slate-800">
             <a href="<?= base_url('public/serah_terima/lapor.php') ?>"
-                class="flex-1 py-2.5 px-4 text-center rounded-xl text-xs font-bold bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 flex items-center justify-center space-x-2 shadow-lg shadow-indigo-950/40">
+                class="flex-1 py-2.5 px-4 text-center rounded-xl text-xs font-semibold text-slate-400 hover:text-white transition flex items-center justify-center space-x-2">
                 <svg class="w-4 h-4 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
                 <span>Serah Terima (Barang Keluar)</span>
             </a>
             <a href="<?= base_url('public/serah_terima/pengembalian.php') ?>"
-                class="flex-1 py-2.5 px-4 text-center rounded-xl text-xs font-semibold text-slate-400 hover:text-white transition flex items-center justify-center space-x-2">
+                class="flex-1 py-2.5 px-4 text-center rounded-xl text-xs font-bold bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center space-x-2 shadow-lg shadow-emerald-950/40">
                 <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                 <span>Pengembalian Barang (Stok Masuk)</span>
             </a>
@@ -176,14 +170,14 @@ $flash = get_flash_message();
         <div class="bg-slate-900/80 backdrop-blur-xl border border-slate-800/90 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-emerald-950/20">
 
             <div class="flex items-center space-x-4 mb-6 pb-6 border-b border-slate-800">
-                <div class="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold">
+                <div class="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold shrink-0">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
                     </svg>
                 </div>
                 <div>
-                    <h1 class="text-xl font-extrabold text-white">Lapor Serah Terima Barang</h1>
-                    <p class="text-xs text-slate-400 mt-0.5">Catat barang keluar & upload bukti foto. Stok akan otomatis terpotong secara realtime.</p>
+                    <h1 class="text-xl font-extrabold text-white">Lapor Pengembalian Barang</h1>
+                    <p class="text-xs text-slate-400 mt-0.5">Catat barang dikembalikan & upload bukti foto. Stok barang akan otomatis bertambah kembali secara realtime.</p>
                 </div>
             </div>
 
@@ -207,22 +201,22 @@ $flash = get_flash_message();
                 </div>
             <?php endif; ?>
 
-            <form id="laporForm" action="" method="POST" enctype="multipart/form-data" class="space-y-6">
+            <form id="pengembalianForm" action="" method="POST" enctype="multipart/form-data" class="space-y-6">
                 <?= csrf_field() ?>
 
-                <!-- Pelapor (Readonly Info) -->
+                <!-- Penerima Laporan (Readonly Info) -->
                 <div class="p-4 bg-slate-950/60 border border-slate-800 rounded-2xl flex items-center justify-between text-xs">
-                    <span class="text-slate-400 font-medium">Pelapor / Pihak Yang Menyerahkan:</span>
+                    <span class="text-slate-400 font-medium">Penerima Laporan (Admin Logistik):</span>
                     <div class="flex items-center space-x-2">
                         <span class="font-bold text-white"><?= e($user['nama']) ?></span>
-                        <span class="px-2 py-0.5 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded-md font-semibold capitalize"><?= e($user['role']) ?></span>
+                        <span class="px-2 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-md font-semibold">Admin</span>
                     </div>
                 </div>
 
                 <!-- Choose Barang -->
                 <div>
                     <label for="barang_id" class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
-                        Pilih Barang Yang Diserahkan *
+                        Pilih Barang Yang Dikembalikan *
                     </label>
                     <select id="barang_id" name="barang_id" required onchange="updateStockPreview()"
                         class="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-white text-sm focus:outline-none focus:border-emerald-500 transition">
@@ -232,45 +226,44 @@ $flash = get_flash_message();
                                     data-stok="<?= $bo['stok_saat_ini'] ?>"
                                     data-satuan="<?= e($bo['satuan']) ?>"
                                     <?= ($selectedBarangId == $bo['id'] || ($_POST['barang_id'] ?? 0) == $bo['id']) ? 'selected' : '' ?>>
-                                <?= e($bo['nama_barang']) ?> — Sisa Stok: <?= number_format($bo['stok_saat_ini']) ?> <?= e($bo['satuan']) ?>
+                                <?= e($bo['nama_barang']) ?> — Sisa Stok Saat Ini: <?= number_format($bo['stok_saat_ini']) ?> <?= e($bo['satuan']) ?>
                             </option>
                         <?php endforeach; ?>
                     </select>
 
                     <!-- Dynamic Stock Preview Card -->
                     <div id="stockPreviewCard" class="mt-3 p-3 bg-slate-950 border border-slate-800/80 rounded-xl hidden flex items-center justify-between text-xs">
-                        <span class="text-slate-400">Sisa stok barang ini saat ini:</span>
+                        <span class="text-slate-400">Sisa stok sebelum pengembalian:</span>
                         <span id="stockPreviewBadge" class="font-bold text-emerald-400 font-mono text-sm"></span>
                     </div>
                 </div>
 
-                <!-- Input Jumlah & Satuan -->
+                <!-- Input Jumlah & Nama Pengembali -->
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                         <label for="jumlah" class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
-                            Jumlah Barang Diserahkan *
+                            Jumlah Barang Dikembalikan *
                         </label>
                         <input type="number" id="jumlah" name="jumlah" min="1" required value="<?= e($_POST['jumlah'] ?? '1') ?>"
                             class="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-white font-mono text-sm focus:outline-none focus:border-emerald-500 transition"
-                            placeholder="Contoh: 10">
+                            placeholder="Contoh: 5">
                     </div>
 
-                    <!-- Free Text Nama Penerima (CRITICAL REQUIREMENT) -->
                     <div>
                         <label for="nama_penerima" class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
-                            Nama Penerima Barang (Teks Bebas) *
+                            Nama Pengembali Barang *
                         </label>
                         <input type="text" id="nama_penerima" name="nama_penerima" required value="<?= e($_POST['nama_penerima'] ?? '') ?>"
                             class="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-white text-sm focus:outline-none focus:border-emerald-500 transition"
-                            placeholder="Tulis nama penerima (Contoh: Pak Anton, Panitia Event)">
-                        <p class="text-[11px] text-slate-500 mt-1">Dapat diisi siapa saja (orang internal / eksternal).</p>
+                            placeholder="Tulis nama pengembali (Contoh: Pak Anton, Panitia Event)">
+                        <p class="text-[11px] text-slate-500 mt-1">Nama orang/pihak yang mengembalikan barang ke divisi.</p>
                     </div>
                 </div>
 
                 <!-- Bukti Foto Upload (HEIC + Multi Upload) -->
                 <div>
                     <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
-                        Upload Bukti Foto Penyerahan (Wajib) *
+                        Upload Bukti Foto Pengembalian (Wajib) *
                     </label>
                     <div class="border-2 border-dashed border-slate-800 hover:border-emerald-500/50 rounded-2xl p-4 bg-slate-950/60 text-center transition">
                         <input type="file" id="bukti_foto" name="bukti_foto[]" multiple accept="image/*,.heic,.heif" required onchange="handleFilePreview(event)"
@@ -282,7 +275,7 @@ $flash = get_flash_message();
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/>
                                 </svg>
                             </div>
-                            <span class="text-xs font-semibold text-emerald-400">Klik untuk memilih bukti foto</span>
+                            <span class="text-xs font-semibold text-emerald-400">Klik untuk memilih bukti foto pengembalian</span>
                             <span class="text-[11px] text-slate-500">Mendukung format JPG, PNG, WEBP, dan HEIC (iPhone). Maksimal 10MB per file.</span>
                         </label>
                     </div>
@@ -298,11 +291,11 @@ $flash = get_flash_message();
                 <!-- Catatan Opsional -->
                 <div>
                     <label for="catatan" class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
-                        Catatan Opsional
+                        Catatan Opsional (Kondisi Barang Kembalian)
                     </label>
                     <textarea id="catatan" name="catatan" rows="3"
                         class="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-white text-sm focus:outline-none focus:border-emerald-500 transition"
-                        placeholder="Kondisi barang saat diserahkan, lokasi/acara, dsb..."><?= e($_POST['catatan'] ?? '') ?></textarea>
+                        placeholder="Contoh: Barang dikembalikan dalam kondisi lengkap & bersih..."><?= e($_POST['catatan'] ?? '') ?></textarea>
                 </div>
 
                 <!-- Submit Button -->
@@ -312,7 +305,7 @@ $flash = get_flash_message();
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
                         </svg>
-                        <span>Kirim Laporan & Potong Stok</span>
+                        <span>Simpan Pengembalian & Tambah Stok</span>
                     </button>
                 </div>
             </form>
@@ -380,7 +373,6 @@ $flash = get_flash_message();
             }
         }
 
-        // Trigger on load if pre-selected
         document.addEventListener('DOMContentLoaded', updateStockPreview);
     </script>
 </body>

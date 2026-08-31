@@ -5,15 +5,18 @@
  */
 
 require_once __DIR__ . '/../middleware/auth.php';
-$user = require_role(['admin']);
+require_once __DIR__ . '/../includes/navbar.php';
+
+$user = require_auth();
 $db = get_db_connection();
 
 // Filters
-$tglMulai   = trim($_GET['tgl_mulai'] ?? '');
-$tglSelesai = trim($_GET['tgl_selesai'] ?? '');
-$barangId   = (int)($_GET['barang_id'] ?? 0);
-$penyerahId = (int)($_GET['penyerah_id'] ?? 0);
-$search     = trim($_GET['q'] ?? '');
+$tglMulai      = trim($_GET['tgl_mulai'] ?? '');
+$tglSelesai    = trim($_GET['tgl_selesai'] ?? '');
+$barangId      = (int)($_GET['barang_id'] ?? 0);
+$penyerahId    = (int)($_GET['penyerah_id'] ?? 0);
+$tipeTransaksi = trim($_GET['tipe'] ?? '');
+$search        = trim($_GET['q'] ?? '');
 
 $where = ["1=1"];
 $params = [];
@@ -33,6 +36,10 @@ if ($barangId > 0) {
 if ($penyerahId > 0) {
     $where[] = "t.penyerah_id = :penyerah_id";
     $params['penyerah_id'] = $penyerahId;
+}
+if (in_array($tipeTransaksi, ['serah_terima', 'pengembalian'], true)) {
+    $where[] = "t.tipe_transaksi = :tipe";
+    $params['tipe'] = $tipeTransaksi;
 }
 if ($search !== '') {
     $where[] = "(t.nama_penerima LIKE :q1 OR t.catatan LIKE :q2 OR b.nama_barang LIKE :q3)";
@@ -94,70 +101,20 @@ $flash = get_flash_message();
 </head>
 <body class="min-h-full bg-slate-950 text-slate-100 flex flex-col font-sans">
 
-    <!-- Header Navbar -->
-    <header class="bg-slate-900/90 backdrop-blur-md border-b border-slate-800 sticky top-0 z-30">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex items-center justify-between h-16">
-                <!-- Brand -->
-                <div class="flex items-center space-x-3">
-                    <div class="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white font-bold shadow-lg shadow-indigo-500/20">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
-                        </svg>
-                    </div>
-                    <div>
-                        <span class="text-base font-bold text-white tracking-wide">Logistik System</span>
-                        <span class="hidden sm:inline-block ml-2 px-2 py-0.5 text-[10px] font-semibold uppercase bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded-md">Admin Portal</span>
-                    </div>
-                </div>
-
-                <!-- Navigation Links -->
-                <nav class="hidden md:flex items-center space-x-1 text-sm font-medium">
-                    <a href="<?= base_url('public/admin/dashboard.php') ?>" class="px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition">Dashboard</a>
-                    <a href="<?= base_url('public/admin/master_barang.php') ?>" class="px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition">Master Barang</a>
-                    <a href="<?= base_url('public/admin/restock.php') ?>" class="px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition">Restock</a>
-                    <a href="<?= base_url('public/admin/kelola_akun.php') ?>" class="px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition">Kelola Akun</a>
-                    <a href="<?= base_url('public/admin/riwayat_transaksi.php') ?>" class="px-3 py-2 rounded-lg text-white bg-indigo-600/20 text-indigo-400 border border-indigo-500/30">Semua Riwayat</a>
-                    <a href="<?= base_url('public/katalog.php') ?>" class="px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition">Katalog</a>
-                    <a href="<?= base_url('public/serah_terima/lapor.php') ?>" class="px-3 py-2 rounded-lg text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 transition">Form Lapor</a>
-                </nav>
-
-                <!-- User Info & Logout -->
-                <div class="flex items-center space-x-3">
-                    <div class="text-right hidden sm:block">
-                        <div class="text-xs font-semibold text-white"><?= e($user['nama']) ?></div>
-                        <div class="text-[10px] text-indigo-400 font-medium">Administrator (CO)</div>
-                    </div>
-                    <a href="<?= base_url('public/auth/logout.php') ?>" class="p-2 rounded-xl bg-slate-800 hover:bg-rose-500/20 hover:text-rose-400 text-slate-400 transition" title="Keluar">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
-                        </svg>
-                    </a>
-                </div>
-            </div>
-        </div>
-
-        <!-- Mobile Menu -->
-        <div class="md:hidden border-t border-slate-800 px-4 py-2 flex items-center justify-around text-xs font-medium">
-            <a href="<?= base_url('public/admin/dashboard.php') ?>" class="text-slate-400 py-1">Dashboard</a>
-            <a href="<?= base_url('public/admin/riwayat_transaksi.php') ?>" class="text-indigo-400 font-bold py-1">Riwayat</a>
-            <a href="<?= base_url('public/katalog.php') ?>" class="text-slate-400 py-1">Katalog</a>
-            <a href="<?= base_url('public/serah_terima/lapor.php') ?>" class="text-emerald-400 font-bold py-1">Lapor</a>
-        </div>
-    </header>
+    <?php render_navbar('riwayat_transaksi', $user); ?>
 
     <!-- Main Container -->
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full space-y-8">
 
         <!-- Title & Header -->
         <div>
-            <h1 class="text-2xl font-extrabold text-white tracking-tight">Riwayat Transaksi Serah Terima (Seluruh Anggota)</h1>
-            <p class="text-xs text-slate-400 mt-1">Audit log seluruh transaksi serah terima barang dari Admin maupun Pekerja Logistik.</p>
+            <h1 class="text-2xl font-extrabold text-white tracking-tight">Semua Riwayat Transaksi</h1>
+            <p class="text-xs text-slate-400 mt-1">Audit log seluruh transaksi serah terima barang keluar & pengembalian barang masuk dari Admin.</p>
         </div>
 
         <!-- Filter Card -->
         <div class="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-2xl p-5 shadow-xl">
-            <form action="" method="GET" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
+            <form action="" method="GET" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4 items-end">
                 <div>
                     <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Tanggal Mulai</label>
                     <input type="date" name="tgl_mulai" value="<?= e($tglMulai) ?>"
@@ -168,6 +125,16 @@ $flash = get_flash_message();
                     <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Tanggal Selesai</label>
                     <input type="date" name="tgl_selesai" value="<?= e($tglSelesai) ?>"
                         class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Tipe Transaksi</label>
+                    <select name="tipe"
+                        class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500">
+                        <option value="">Semua Tipe</option>
+                        <option value="serah_terima" <?= $tipeTransaksi === 'serah_terima' ? 'selected' : '' ?>>Serah Terima (Keluar)</option>
+                        <option value="pengembalian" <?= $tipeTransaksi === 'pengembalian' ? 'selected' : '' ?>>Pengembalian (Masuk)</option>
+                    </select>
                 </div>
 
                 <div>
@@ -182,12 +149,12 @@ $flash = get_flash_message();
                 </div>
 
                 <div>
-                    <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Filter Pelapor / Penyerah</label>
+                    <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Filter Admin Pelapor</label>
                     <select name="penyerah_id"
                         class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500">
-                        <option value="">Semua Anggota</option>
+                        <option value="">Semua Admin</option>
                         <?php foreach ($penyerahOptions as $po): ?>
-                            <option value="<?= $po['id'] ?>" <?= $penyerahId == $po['id'] ? 'selected' : '' ?>><?= e($po['nama']) ?> (<?= e($po['role']) ?>)</option>
+                            <option value="<?= $po['id'] ?>" <?= $penyerahId == $po['id'] ? 'selected' : '' ?>><?= e($po['nama']) ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
@@ -207,7 +174,7 @@ $flash = get_flash_message();
         <div class="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
             <?php if (empty($transaksiList)): ?>
                 <div class="p-12 text-center text-slate-500 text-xs">
-                    Tidak ditemukan data transaksi serah terima yang sesuai filter.
+                    Tidak ditemukan data transaksi yang sesuai filter.
                 </div>
             <?php else: ?>
                 <div class="overflow-x-auto">
@@ -215,17 +182,20 @@ $flash = get_flash_message();
                         <thead class="bg-slate-950 text-slate-400 uppercase tracking-wider font-semibold border-b border-slate-800">
                             <tr>
                                 <th class="py-3.5 px-4 text-center">Bukti Foto</th>
-                                <th class="py-3.5 px-4">Waktu Transaksi</th>
+                                <th class="py-3.5 px-4">Tipe Transaksi</th>
+                                <th class="py-3.5 px-4">Waktu</th>
                                 <th class="py-3.5 px-4">Barang</th>
                                 <th class="py-3.5 px-4 text-center">Jumlah</th>
                                 <th class="py-3.5 px-4 text-center">Audit Stok</th>
-                                <th class="py-3.5 px-4">Pelapor (Penyerah)</th>
-                                <th class="py-3.5 px-4">Penerima (Bebas)</th>
+                                <th class="py-3.5 px-4">Admin Pelapor</th>
+                                <th class="py-3.5 px-4">Pihak Penerima/Pengembali</th>
                                 <th class="py-3.5 px-4">Catatan</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-800/60">
-                            <?php foreach ($transaksiList as $t): ?>
+                            <?php foreach ($transaksiList as $t):
+                                $isReturn = (isset($t['tipe_transaksi']) && $t['tipe_transaksi'] === 'pengembalian');
+                            ?>
                                 <tr class="hover:bg-slate-800/30 transition">
                                     <!-- Bukti Foto -->
                                     <td class="py-3 px-4 text-center">
@@ -233,7 +203,7 @@ $flash = get_flash_message();
                                             <?php if ($t['foto_utama']): ?>
                                                 <img src="<?= base_url('public/' . $t['foto_utama']) ?>" alt="Bukti Foto"
                                                     class="w-full h-full object-cover cursor-pointer"
-                                                    onclick='openProofGallery(<?= e(json_encode($allPhotos[$t['id']] ?? [])) ?>, <?= e(json_encode("Bukti Serah Terima #" . $t['id'])) ?>)'>
+                                                    onclick='openProofGallery(<?= e(json_encode($allPhotos[$t['id']] ?? [])) ?>, <?= e(json_encode("Bukti Transaksi #" . $t['id'])) ?>)'>
                                                 <?php if ($t['total_bukti'] > 1): ?>
                                                     <span class="absolute bottom-0 right-0 bg-indigo-600 text-white text-[9px] font-bold px-1 rounded-tl-md">+<?= $t['total_bukti'] - 1 ?></span>
                                                 <?php endif; ?>
@@ -241,6 +211,20 @@ $flash = get_flash_message();
                                                 <div class="w-full h-full flex items-center justify-center text-slate-600">-</div>
                                             <?php endif; ?>
                                         </div>
+                                    </td>
+                                    <!-- Tipe Transaksi -->
+                                    <td class="py-3 px-4 whitespace-nowrap">
+                                        <?php if ($isReturn): ?>
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                                <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                                                Pengembalian
+                                            </span>
+                                        <?php else: ?>
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                                                <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+                                                Serah Terima
+                                            </span>
+                                        <?php endif; ?>
                                     </td>
                                     <!-- Waktu -->
                                     <td class="py-3 px-4 whitespace-nowrap text-slate-400">
@@ -251,8 +235,8 @@ $flash = get_flash_message();
                                         <?= e($t['nama_barang']) ?>
                                     </td>
                                     <!-- Jumlah -->
-                                    <td class="py-3 px-4 text-center font-mono font-extrabold text-sm text-emerald-400">
-                                        <?= number_format($t['jumlah']) ?> <?= e($t['satuan']) ?>
+                                    <td class="py-3 px-4 text-center font-mono font-extrabold text-sm <?= $isReturn ? 'text-emerald-400' : 'text-rose-400' ?>">
+                                        <?= $isReturn ? '+' : '-' ?><?= number_format($t['jumlah']) ?> <?= e($t['satuan']) ?>
                                     </td>
                                     <!-- Audit Stok -->
                                     <td class="py-3 px-4 text-center font-mono text-xs text-slate-400">
@@ -261,9 +245,9 @@ $flash = get_flash_message();
                                     <!-- Pelapor -->
                                     <td class="py-3 px-4">
                                         <div class="font-semibold text-slate-200"><?= e($t['penyerah_nama']) ?></div>
-                                        <div class="text-[10px] text-indigo-400 capitalize"><?= e($t['penyerah_role']) ?></div>
+                                        <div class="text-[10px] text-indigo-400 capitalize">Admin</div>
                                     </td>
-                                    <!-- Penerima -->
+                                    <!-- Penerima/Pengembali -->
                                     <td class="py-3 px-4 font-bold text-indigo-300">
                                         <?= e($t['nama_penerima']) ?>
                                     </td>

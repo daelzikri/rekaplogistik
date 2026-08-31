@@ -44,6 +44,24 @@ function get_db_connection(): PDO {
         ];
         try {
             $pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
+
+            // Auto Migration: ensure tipe_transaksi column exists in transaksi table
+            try {
+                $colCheck = $pdo->query("SHOW COLUMNS FROM `transaksi` LIKE 'tipe_transaksi'")->fetch();
+                if (!$colCheck) {
+                    $pdo->exec("ALTER TABLE `transaksi` ADD COLUMN `tipe_transaksi` ENUM('serah_terima','pengembalian') NOT NULL DEFAULT 'serah_terima' AFTER `barang_id`");
+                }
+            } catch (Exception $ex) {
+                // Ignore if table doesn't exist yet
+            }
+
+            // Auto Migration: ensure role column allows admin and updates any pekerja to admin
+            try {
+                $pdo->exec("UPDATE `users` SET `role` = 'admin' WHERE `role` != 'admin'");
+            } catch (Exception $ex) {
+                // Ignore
+            }
+
         } catch (PDOException $e) {
             error_log("Database Connection Error: " . $e->getMessage());
 

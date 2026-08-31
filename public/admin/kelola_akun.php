@@ -6,8 +6,9 @@
 
 require_once __DIR__ . '/../middleware/auth.php';
 require_once __DIR__ . '/../../config/csrf.php';
+require_once __DIR__ . '/../includes/navbar.php';
 
-$user = require_role(['admin']);
+$user = require_auth();
 $db = get_db_connection();
 
 $error = null;
@@ -20,12 +21,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $nama     = trim($_POST['nama'] ?? '');
         $username = strtolower(trim($_POST['username'] ?? ''));
         $password = $_POST['password'] ?? '';
-        $role     = $_POST['role'] ?? 'pekerja';
+        $role     = 'admin';
 
-        if (empty($nama) || empty($username) || empty($password)) {
+        // Check user count limit (Max 2 accounts)
+        $countUsers = (int)$db->query("SELECT COUNT(*) FROM users")->fetchColumn();
+        if ($countUsers >= 2) {
+            set_flash_message('error', 'Sistem dibatasi hanya untuk maksimal 2 akun Admin. Tidak dapat menambah akun lebih dari 2.');
+        } elseif (empty($nama) || empty($username) || empty($password)) {
             set_flash_message('error', 'Semua kolom pendaftaran akun wajib diisi.');
-        } elseif (!in_array($role, ['admin', 'pekerja'], true)) {
-            set_flash_message('error', 'Role user tidak valid.');
         } else {
             // Check username uniqueness
             $uStmt = $db->prepare("SELECT COUNT(*) FROM users WHERE username = :u");
@@ -42,8 +45,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'role' => $role
                 ]);
 
-                write_audit_log($db, $user['id'], 'BUAT_AKUN_USER', "Membuat akun baru: '{$username}' ({$nama}) sebagai role {$role}.");
-                set_flash_message('success', "Akun '{$nama}' ({$username}) berhasil dibuat.");
+                write_audit_log($db, $user['id'], 'BUAT_AKUN_USER', "Membuat akun Admin baru: '{$username}' ({$nama}).");
+                set_flash_message('success', "Akun Admin '{$nama}' ({$username}) berhasil dibuat.");
                 header('Location: ' . base_url('public/admin/kelola_akun.php'));
                 exit;
             }
@@ -52,15 +55,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $targetId = (int)($_POST['target_id'] ?? 0);
         $nama     = trim($_POST['nama'] ?? '');
         $username = strtolower(trim($_POST['username'] ?? ''));
-        $role     = $_POST['role'] ?? 'pekerja';
+        $role     = 'admin';
         $password = $_POST['password'] ?? '';
 
         if ($targetId <= 0 || empty($nama) || empty($username)) {
             set_flash_message('error', 'Nama lengkap dan username tidak boleh kosong.');
-        } elseif (!in_array($role, ['admin', 'pekerja'], true)) {
-            set_flash_message('error', 'Role user tidak valid.');
         } else {
-            // Check username uniqueness (excluding current target user ID)
+            // Check username uniqueness
             $uStmt = $db->prepare("SELECT COUNT(*) FROM users WHERE username = :u AND id != :id");
             $uStmt->execute(['u' => $username, 'id' => $targetId]);
             if ((int)$uStmt->fetchColumn() > 0) {
@@ -76,7 +77,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'hash' => $hash,
                         'id'   => $targetId
                     ]);
-                    $msgDetail = "nama, username, role, dan password";
+                    $msgDetail = "nama, username, dan password";
                 } else {
                     $upStmt = $db->prepare("UPDATE users SET nama = :nama, username = :u, role = :role WHERE id = :id");
                     $upStmt->execute([
@@ -85,11 +86,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'role' => $role,
                         'id'   => $targetId
                     ]);
-                    $msgDetail = "nama, username, dan role";
+                    $msgDetail = "nama dan username";
                 }
 
                 write_audit_log($db, $user['id'], 'EDIT_AKUN_USER', "Mengubah data akun ID {$targetId}: {$msgDetail}.");
-                set_flash_message('success', "Data akun '{$nama}' ({$username}) berhasil diperbarui.");
+                set_flash_message('success', "Data akun Admin '{$nama}' ({$username}) berhasil diperbarui.");
                 header('Location: ' . base_url('public/admin/kelola_akun.php'));
                 exit;
             }
@@ -164,57 +165,7 @@ $flash = get_flash_message();
 </head>
 <body class="min-h-full bg-slate-950 text-slate-100 flex flex-col font-sans">
 
-    <!-- Header Navbar -->
-    <header class="bg-slate-900/90 backdrop-blur-md border-b border-slate-800 sticky top-0 z-30">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex items-center justify-between h-16">
-                <!-- Brand -->
-                <div class="flex items-center space-x-3">
-                    <div class="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white font-bold shadow-lg shadow-indigo-500/20">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
-                        </svg>
-                    </div>
-                    <div>
-                        <span class="text-base font-bold text-white tracking-wide">Logistik System</span>
-                        <span class="hidden sm:inline-block ml-2 px-2 py-0.5 text-[10px] font-semibold uppercase bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded-md">Admin Portal</span>
-                    </div>
-                </div>
-
-                <!-- Navigation Links -->
-                <nav class="hidden md:flex items-center space-x-1 text-sm font-medium">
-                    <a href="<?= base_url('public/admin/dashboard.php') ?>" class="px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition">Dashboard</a>
-                    <a href="<?= base_url('public/admin/master_barang.php') ?>" class="px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition">Master Barang</a>
-                    <a href="<?= base_url('public/admin/restock.php') ?>" class="px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition">Restock</a>
-                    <a href="<?= base_url('public/admin/kelola_akun.php') ?>" class="px-3 py-2 rounded-lg text-white bg-indigo-600/20 text-indigo-400 border border-indigo-500/30">Kelola Akun</a>
-                    <a href="<?= base_url('public/admin/riwayat_transaksi.php') ?>" class="px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition">Semua Riwayat</a>
-                    <a href="<?= base_url('public/katalog.php') ?>" class="px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition">Katalog</a>
-                    <a href="<?= base_url('public/serah_terima/lapor.php') ?>" class="px-3 py-2 rounded-lg text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 transition">Form Lapor</a>
-                </nav>
-
-                <!-- User Info & Logout -->
-                <div class="flex items-center space-x-3">
-                    <div class="text-right hidden sm:block">
-                        <div class="text-xs font-semibold text-white"><?= e($user['nama']) ?></div>
-                        <div class="text-[10px] text-indigo-400 font-medium">Administrator (CO)</div>
-                    </div>
-                    <a href="<?= base_url('public/auth/logout.php') ?>" class="p-2 rounded-xl bg-slate-800 hover:bg-rose-500/20 hover:text-rose-400 text-slate-400 transition" title="Keluar">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
-                        </svg>
-                    </a>
-                </div>
-            </div>
-        </div>
-
-        <!-- Mobile Menu -->
-        <div class="md:hidden border-t border-slate-800 px-4 py-2 flex items-center justify-around text-xs font-medium">
-            <a href="<?= base_url('public/admin/dashboard.php') ?>" class="text-slate-400 py-1">Dashboard</a>
-            <a href="<?= base_url('public/admin/kelola_akun.php') ?>" class="text-indigo-400 font-bold py-1">Akun</a>
-            <a href="<?= base_url('public/katalog.php') ?>" class="text-slate-400 py-1">Katalog</a>
-            <a href="<?= base_url('public/serah_terima/lapor.php') ?>" class="text-emerald-400 font-bold py-1">Lapor</a>
-        </div>
-    </header>
+    <?php render_navbar('kelola_akun', $user); ?>
 
     <!-- Main Container -->
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full space-y-8">
@@ -222,13 +173,22 @@ $flash = get_flash_message();
         <!-- Title -->
         <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
-                <h1 class="text-2xl font-extrabold text-white tracking-tight">Kelola Akun Anggota Logistik</h1>
-                <p class="text-xs text-slate-400 mt-1">Buat akun pekerja baru, reset password, buka akun terkunci, dan reset sesi paksa.</p>
+                <h1 class="text-2xl font-extrabold text-white tracking-tight">Kelola Akun Admin Logistik</h1>
+                <p class="text-xs text-slate-400 mt-1">Sistem ini dikhususkan untuk 2 akun Admin. Anda dapat mengubah nama, username, password, serta reset sesi.</p>
             </div>
-            <button onclick="openAddUserModal()" class="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs rounded-xl shadow-lg shadow-indigo-600/30 flex items-center space-x-2 transition">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/></svg>
-                <span>Buat Akun Pekerja Baru</span>
-            </button>
+            <div>
+                <?php if (count($userList) < 2): ?>
+                    <button onclick="openAddUserModal()" class="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs rounded-xl shadow-lg shadow-indigo-600/30 flex items-center space-x-2 transition">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/></svg>
+                        <span>Tambah Akun Admin (<?= count($userList) ?>/2)</span>
+                    </button>
+                <?php else: ?>
+                    <span class="px-3.5 py-2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold text-xs rounded-xl flex items-center space-x-2">
+                        <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                        <span>2 / 2 Akun Admin Terdaftar</span>
+                    </span>
+                <?php endif; ?>
+            </div>
         </div>
 
         <!-- Flash Message -->
@@ -268,9 +228,8 @@ $flash = get_flash_message();
                                 <?= e($u['username']) ?>
                             </td>
                             <td class="py-3 px-4 text-center">
-                                <span class="px-2 py-0.5 rounded-md font-semibold text-[10px] uppercase border
-                                    <?= $u['role'] === 'admin' ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' : 'bg-slate-800 text-slate-300 border-slate-700' ?>">
-                                    <?= e($u['role']) ?>
+                                <span class="px-2 py-0.5 rounded-md font-semibold text-[10px] uppercase border bg-indigo-500/10 text-indigo-400 border-indigo-500/20">
+                                    Admin
                                 </span>
                             </td>
                             <td class="py-3 px-4 text-center">
@@ -319,7 +278,7 @@ $flash = get_flash_message();
                                     <?php endif; ?>
 
                                     <button onclick='openEditUserModal(<?= e(json_encode($u)) ?>)'
-                                        class="px-2 py-1 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded-md font-semibold text-[10px] hover:bg-indigo-500/20 flex items-center space-x-1" title="Edit Nama, Username, Role & Password">
+                                        class="px-2 py-1 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded-md font-semibold text-[10px] hover:bg-indigo-500/20 flex items-center space-x-1" title="Edit Nama, Username & Password">
                                         <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                                         <span>Edit Akun</span>
                                     </button>
@@ -337,7 +296,7 @@ $flash = get_flash_message();
     <div id="addUserModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm hidden">
         <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl">
             <div class="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
-                <h3 class="text-base font-bold text-white">Buat Akun Anggota Logistik</h3>
+                <h3 class="text-base font-bold text-white">Buat Akun Admin Baru</h3>
                 <button onclick="closeAddUserModal()" class="text-slate-400 hover:text-white">&times;</button>
             </div>
             <form action="" method="POST" class="space-y-4">
@@ -346,13 +305,13 @@ $flash = get_flash_message();
 
                 <div>
                     <label class="block text-xs font-semibold text-slate-300 uppercase mb-1">Nama Lengkap *</label>
-                    <input type="text" name="nama" required placeholder="Contoh: Budi Santoso"
+                    <input type="text" name="nama" required placeholder="Contoh: Admin Dua"
                         class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500">
                 </div>
 
                 <div>
                     <label class="block text-xs font-semibold text-slate-300 uppercase mb-1">Username *</label>
-                    <input type="text" name="username" required placeholder="pekerja_budi"
+                    <input type="text" name="username" required placeholder="admin2"
                         class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500">
                 </div>
 
@@ -362,17 +321,9 @@ $flash = get_flash_message();
                         class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500">
                 </div>
 
-                <div>
-                    <label class="block text-xs font-semibold text-slate-300 uppercase mb-1">Role Akun *</label>
-                    <select name="role" required class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500">
-                        <option value="pekerja">Pekerja Logistik (Semua Akun Setara)</option>
-                        <option value="admin">Admin (CO Lapangan)</option>
-                    </select>
-                </div>
-
                 <div class="flex justify-end space-x-2 pt-3 border-t border-slate-800">
                     <button type="button" onclick="closeAddUserModal()" class="px-3 py-2 text-slate-400 text-xs">Batal</button>
-                    <button type="submit" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl">Simpan Akun</button>
+                    <button type="submit" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl">Simpan Akun Admin</button>
                 </div>
             </form>
         </div>
@@ -431,18 +382,10 @@ $flash = get_flash_message();
                 </div>
 
                 <div>
-                    <label class="block text-xs font-semibold text-slate-300 uppercase mb-1">Role Akun *</label>
-                    <select id="edit_role" name="role" required class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500">
-                        <option value="pekerja">Pekerja Logistik</option>
-                        <option value="admin">Admin (CO Lapangan)</option>
-                    </select>
-                </div>
-
-                <div>
                     <label class="block text-xs font-semibold text-slate-300 uppercase mb-1">Password Baru (Opsional)</label>
                     <input type="password" id="edit_password" name="password" placeholder="Kosongkan jika tidak diubah"
                         class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500">
-                    <p class="text-[11px] text-slate-500 mt-1">Kosongkan jika hanya ingin mengubah nama/role saja.</p>
+                    <p class="text-[11px] text-slate-500 mt-1">Kosongkan jika hanya ingin mengubah nama/username saja.</p>
                 </div>
 
                 <div class="flex justify-end space-x-2 pt-3 border-t border-slate-800">
@@ -465,7 +408,6 @@ $flash = get_flash_message();
             document.getElementById('edit_target_id').value = u.id;
             document.getElementById('edit_nama').value = u.nama;
             document.getElementById('edit_username').value = u.username;
-            document.getElementById('edit_role').value = u.role;
             document.getElementById('edit_password').value = '';
             document.getElementById('editUserModal').classList.remove('hidden');
         }

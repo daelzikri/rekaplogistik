@@ -5,7 +5,9 @@
  */
 
 require_once __DIR__ . '/../middleware/auth.php';
-$user = require_role(['admin', 'pekerja']);
+require_once __DIR__ . '/../includes/navbar.php';
+
+$user = require_auth();
 $db = get_db_connection();
 
 $search     = trim($_GET['q'] ?? '');
@@ -78,65 +80,7 @@ $flash = get_flash_message();
 </head>
 <body class="min-h-full bg-slate-950 text-slate-100 flex flex-col font-sans">
 
-    <!-- Navbar Header -->
-    <header class="bg-slate-900/90 backdrop-blur-md border-b border-slate-800 sticky top-0 z-30">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex items-center justify-between h-16">
-                <!-- Brand -->
-                <div class="flex items-center space-x-3">
-                    <div class="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white font-bold shadow-lg shadow-indigo-500/20">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
-                        </svg>
-                    </div>
-                    <div>
-                        <span class="text-base font-bold text-white tracking-wide">Logistik System</span>
-                        <span class="hidden sm:inline-block ml-2 px-2 py-0.5 text-[10px] font-semibold uppercase bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded-md">Riwayat Saya</span>
-                    </div>
-                </div>
-
-                <!-- Navigation Links -->
-                <nav class="hidden md:flex items-center space-x-1 text-sm font-medium">
-                    <?php if ($user['role'] === 'admin'): ?>
-                        <a href="<?= base_url('public/admin/dashboard.php') ?>" class="px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition">Dashboard</a>
-                        <a href="<?= base_url('public/admin/master_barang.php') ?>" class="px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition">Master Barang</a>
-                        <a href="<?= base_url('public/admin/restock.php') ?>" class="px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition">Restock</a>
-                    <?php endif; ?>
-
-                    <a href="<?= base_url('public/katalog.php') ?>" class="px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition">Katalog Barang</a>
-                    <a href="<?= base_url('public/serah_terima/lapor.php') ?>" class="px-3 py-2 rounded-lg text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 transition">Lapor Serah Terima</a>
-                    <a href="<?= base_url('public/serah_terima/riwayat_saya.php') ?>" class="px-3 py-2 rounded-lg text-white bg-indigo-600/20 text-indigo-400 border border-indigo-500/30">Riwayat Saya</a>
-
-                    <?php if ($user['role'] === 'admin'): ?>
-                        <a href="<?= base_url('public/admin/riwayat_transaksi.php') ?>" class="px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition">Semua Riwayat</a>
-                    <?php endif; ?>
-                </nav>
-
-                <!-- User Profile & Logout -->
-                <div class="flex items-center space-x-3">
-                    <div class="text-right hidden sm:block">
-                        <div class="text-xs font-semibold text-white"><?= e($user['nama']) ?></div>
-                        <div class="text-[10px] text-slate-400 font-medium capitalize"><?= e($user['role']) ?> Logistik</div>
-                    </div>
-                    <a href="<?= base_url('public/auth/logout.php') ?>" class="p-2 rounded-xl bg-slate-800 hover:bg-rose-500/20 hover:text-rose-400 text-slate-400 transition" title="Keluar">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
-                        </svg>
-                    </a>
-                </div>
-            </div>
-        </div>
-
-        <!-- Mobile Nav Menu -->
-        <div class="md:hidden border-t border-slate-800 px-4 py-2 flex items-center justify-around text-xs font-medium">
-            <a href="<?= base_url('public/katalog.php') ?>" class="text-slate-400 py-1">Katalog</a>
-            <a href="<?= base_url('public/serah_terima/lapor.php') ?>" class="text-emerald-400 font-bold py-1">Lapor</a>
-            <a href="<?= base_url('public/serah_terima/riwayat_saya.php') ?>" class="text-indigo-400 font-bold py-1">Riwayat Saya</a>
-            <?php if ($user['role'] === 'admin'): ?>
-                <a href="<?= base_url('public/admin/dashboard.php') ?>" class="text-slate-400 py-1">Dashboard</a>
-            <?php endif; ?>
-        </div>
-    </header>
+    <?php render_navbar('riwayat_saya', $user); ?>
 
     <!-- Main Container -->
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full space-y-8">
@@ -212,16 +156,19 @@ $flash = get_flash_message();
                     <thead class="bg-slate-950 text-slate-400 uppercase tracking-wider font-semibold border-b border-slate-800">
                         <tr>
                             <th class="py-3.5 px-4 text-center">Bukti Foto</th>
-                            <th class="py-3.5 px-4">Waktu Transaksi</th>
+                            <th class="py-3.5 px-4">Tipe Transaksi</th>
+                            <th class="py-3.5 px-4">Waktu</th>
                             <th class="py-3.5 px-4">Nama Barang</th>
-                            <th class="py-3.5 px-4 text-center">Jumlah Diserahkan</th>
-                            <th class="py-3.5 px-4 text-center">Sisa Stok Setelahnya</th>
-                            <th class="py-3.5 px-4">Penerima Barang</th>
+                            <th class="py-3.5 px-4 text-center">Jumlah</th>
+                            <th class="py-3.5 px-4 text-center">Sisa Stok</th>
+                            <th class="py-3.5 px-4">Pihak Penerima/Pengembali</th>
                             <th class="py-3.5 px-4">Catatan</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-800/60">
-                        <?php foreach ($myTransaksi as $t): ?>
+                        <?php foreach ($myTransaksi as $t):
+                            $isReturn = (isset($t['tipe_transaksi']) && $t['tipe_transaksi'] === 'pengembalian');
+                        ?>
                             <tr class="hover:bg-slate-800/30 transition">
                                 <td class="py-3 px-4 text-center">
                                     <div class="w-12 h-12 rounded-xl bg-slate-950 border border-slate-800 overflow-hidden mx-auto relative group">
@@ -237,14 +184,27 @@ $flash = get_flash_message();
                                         <?php endif; ?>
                                     </div>
                                 </td>
+                                <td class="py-3 px-4 whitespace-nowrap">
+                                    <?php if ($isReturn): ?>
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                            <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                                            Pengembalian
+                                        </span>
+                                    <?php else: ?>
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                                            <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+                                            Serah Terima
+                                        </span>
+                                    <?php endif; ?>
+                                </td>
                                 <td class="py-3 px-4 text-slate-400 whitespace-nowrap">
                                     <?= format_tanggal_indonesia($t['waktu_transaksi']) ?>
                                 </td>
                                 <td class="py-3 px-4 font-bold text-white text-sm">
                                     <?= e($t['nama_barang']) ?>
                                 </td>
-                                <td class="py-3 px-4 text-center font-mono font-extrabold text-sm text-emerald-400">
-                                    <?= number_format($t['jumlah']) ?> <?= e($t['satuan']) ?>
+                                <td class="py-3 px-4 text-center font-mono font-extrabold text-sm <?= $isReturn ? 'text-emerald-400' : 'text-rose-400' ?>">
+                                    <?= $isReturn ? '+' : '-' ?><?= number_format($t['jumlah']) ?> <?= e($t['satuan']) ?>
                                 </td>
                                 <td class="py-3 px-4 text-center font-mono text-slate-400">
                                     <?= number_format($t['stok_sesudah']) ?> <?= e($t['satuan']) ?>
@@ -263,25 +223,31 @@ $flash = get_flash_message();
 
             <!-- Mobile View: Responsive Cards -->
             <div class="grid grid-cols-1 md:grid-cols-2 lg:hidden gap-4">
-                <?php foreach ($myTransaksi as $t): ?>
+                <?php foreach ($myTransaksi as $t):
+                    $isReturn = (isset($t['tipe_transaksi']) && $t['tipe_transaksi'] === 'pengembalian');
+                ?>
                     <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-3">
                         <div class="flex items-start justify-between">
                             <div>
                                 <span class="text-[10px] text-slate-500 font-mono"><?= format_tanggal_indonesia($t['waktu_transaksi']) ?></span>
                                 <h3 class="font-bold text-white text-base mt-0.5"><?= e($t['nama_barang']) ?></h3>
                             </div>
-                            <span class="font-mono font-extrabold text-emerald-400 text-sm bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-lg">
-                                <?= number_format($t['jumlah']) ?> <?= e($t['satuan']) ?>
+                            <span class="font-mono font-extrabold text-sm px-2.5 py-1 rounded-lg border <?= $isReturn ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border-rose-500/20' ?>">
+                                <?= $isReturn ? '+' : '-' ?><?= number_format($t['jumlah']) ?> <?= e($t['satuan']) ?>
                             </span>
                         </div>
 
                         <div class="p-3 bg-slate-950/70 border border-slate-800 rounded-xl space-y-1 text-xs">
                             <div class="flex justify-between">
-                                <span class="text-slate-400">Diserahkan Kepada:</span>
+                                <span class="text-slate-400">Tipe:</span>
+                                <span class="font-bold <?= $isReturn ? 'text-emerald-400' : 'text-rose-400' ?>"><?= $isReturn ? 'Pengembalian (Stok Masuk)' : 'Serah Terima (Stok Keluar)' ?></span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-slate-400"><?= $isReturn ? 'Dikembalikan Oleh:' : 'Diserahkan Kepada:' ?></span>
                                 <span class="font-bold text-indigo-300"><?= e($t['nama_penerima']) ?></span>
                             </div>
                             <div class="flex justify-between">
-                                <span class="text-slate-400">Sisa Stok Setelah Transaksi:</span>
+                                <span class="text-slate-400">Sisa Stok Setelahnya:</span>
                                 <span class="font-mono text-slate-200"><?= number_format($t['stok_sesudah']) ?> <?= e($t['satuan']) ?></span>
                             </div>
                             <?php if ($t['catatan']): ?>

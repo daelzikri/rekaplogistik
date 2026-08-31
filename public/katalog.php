@@ -5,7 +5,9 @@
  */
 
 require_once __DIR__ . '/middleware/auth.php';
-$user = require_role(['admin', 'pekerja']);
+require_once __DIR__ . '/includes/navbar.php';
+
+$user = require_auth();
 $db = get_db_connection();
 
 $search = trim($_GET['q'] ?? '');
@@ -64,65 +66,7 @@ $flash = get_flash_message();
 </head>
 <body class="min-h-full bg-slate-950 text-slate-100 flex flex-col font-sans">
 
-    <!-- Navbar Navigation -->
-    <header class="bg-slate-900/90 backdrop-blur-md border-b border-slate-800 sticky top-0 z-30">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex items-center justify-between h-16">
-                <!-- Brand -->
-                <div class="flex items-center space-x-3">
-                    <div class="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white font-bold shadow-lg shadow-indigo-500/20">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
-                        </svg>
-                    </div>
-                    <div>
-                        <span class="text-base font-bold text-white tracking-wide">Logistik System</span>
-                        <span class="hidden sm:inline-block ml-2 px-2 py-0.5 text-[10px] font-semibold uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-md">Katalog Barang</span>
-                    </div>
-                </div>
-
-                <!-- Navigation Links -->
-                <nav class="hidden md:flex items-center space-x-1 text-sm font-medium">
-                    <?php if ($user['role'] === 'admin'): ?>
-                        <a href="<?= base_url('public/admin/dashboard.php') ?>" class="px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition">Dashboard</a>
-                        <a href="<?= base_url('public/admin/master_barang.php') ?>" class="px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition">Master Barang</a>
-                        <a href="<?= base_url('public/admin/restock.php') ?>" class="px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition">Restock</a>
-                    <?php endif; ?>
-
-                    <a href="<?= base_url('public/katalog.php') ?>" class="px-3 py-2 rounded-lg text-white bg-indigo-600/20 text-indigo-400 border border-indigo-500/30">Katalog Barang</a>
-                    <a href="<?= base_url('public/serah_terima/lapor.php') ?>" class="px-3 py-2 rounded-lg text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 transition">Lapor Serah Terima</a>
-                    <a href="<?= base_url('public/serah_terima/riwayat_saya.php') ?>" class="px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition">Riwayat Saya</a>
-
-                    <?php if ($user['role'] === 'admin'): ?>
-                        <a href="<?= base_url('public/admin/riwayat_transaksi.php') ?>" class="px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition">Semua Riwayat</a>
-                    <?php endif; ?>
-                </nav>
-
-                <!-- User Profile & Logout -->
-                <div class="flex items-center space-x-3">
-                    <div class="text-right hidden sm:block">
-                        <div class="text-xs font-semibold text-white"><?= e($user['nama']) ?></div>
-                        <div class="text-[10px] text-slate-400 font-medium capitalize"><?= e($user['role']) ?> Logistik</div>
-                    </div>
-                    <a href="<?= base_url('public/auth/logout.php') ?>" class="p-2 rounded-xl bg-slate-800 hover:bg-rose-500/20 hover:text-rose-400 text-slate-400 transition" title="Keluar">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
-                        </svg>
-                    </a>
-                </div>
-            </div>
-        </div>
-
-        <!-- Mobile Navigation Menu -->
-        <div class="md:hidden border-t border-slate-800 px-4 py-2 flex items-center justify-around text-xs font-medium">
-            <a href="<?= base_url('public/katalog.php') ?>" class="text-indigo-400 font-bold py-1">Katalog</a>
-            <a href="<?= base_url('public/serah_terima/lapor.php') ?>" class="text-emerald-400 font-bold py-1">Lapor</a>
-            <a href="<?= base_url('public/serah_terima/riwayat_saya.php') ?>" class="text-slate-400 py-1">Riwayat Saya</a>
-            <?php if ($user['role'] === 'admin'): ?>
-                <a href="<?= base_url('public/admin/dashboard.php') ?>" class="text-slate-400 py-1">Dashboard</a>
-            <?php endif; ?>
-        </div>
-    </header>
+    <?php render_navbar('katalog', $user); ?>
 
     <!-- Main Container -->
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full space-y-6">

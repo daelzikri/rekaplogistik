@@ -15,7 +15,7 @@ if (!empty($_SESSION['user_id']) && !empty($_SESSION['session_token'])) {
     $stmt->execute(['id' => $_SESSION['user_id']]);
     $u = $stmt->fetch();
     if ($u && $u['session_token'] === $_SESSION['session_token']) {
-        header('Location: ' . ($u['role'] === 'admin' ? base_url('public/admin/dashboard.php') : base_url('public/katalog.php')));
+        header('Location: ' . base_url('public/admin/dashboard.php'));
         exit;
     }
 }
@@ -63,7 +63,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     write_audit_log($db, $user['id'], 'LOGIN_SUCCESS', "User {$user['nama']} ({$user['role']}) berhasil login.");
 
                     set_flash_message('success', "Selamat datang kembali, {$user['nama']}!");
-                    header('Location: ' . ($user['role'] === 'admin' ? base_url('public/admin/dashboard.php') : base_url('public/katalog.php')));
+                    header('Location: ' . base_url('public/admin/dashboard.php'));
                     exit;
                 } else {
                     $newFailedCount = $user['failed_login_count'] + 1;

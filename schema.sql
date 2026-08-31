@@ -7,13 +7,13 @@
 CREATE DATABASE IF NOT EXISTS `logistik_barang` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE `logistik_barang`;
 
--- 1. Tabel Users (hanya 2 role: admin & pekerja, semua pekerja setara)
+-- 1. Tabel Users (2 akun Admin)
 CREATE TABLE IF NOT EXISTS `users` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `nama` VARCHAR(150) NOT NULL,
   `username` VARCHAR(100) UNIQUE NOT NULL,
   `password_hash` VARCHAR(255) NOT NULL,
-  `role` ENUM('admin','pekerja') NOT NULL DEFAULT 'pekerja',
+  `role` ENUM('admin') NOT NULL DEFAULT 'admin',
   `session_token` VARCHAR(255) NULL,
   `last_activity_at` DATETIME NULL,
   `failed_login_count` INT DEFAULT 0,
@@ -48,13 +48,15 @@ CREATE TABLE IF NOT EXISTS `foto_barang` (
   CONSTRAINT `fk_foto_barang` FOREIGN KEY (`barang_id`) REFERENCES `barang` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 4. Tabel Transaksi (Log Serah Terima)
--- Catatan: penyerah_id = akun yang login & melapor (admin ATAU pekerja)
---          nama_penerima = teks bebas yang ditulis pelapor di form
+-- 4. Tabel Transaksi (Log Serah Terima & Pengembalian Barang)
+-- Catatan: penyerah_id = akun admin yang login & melapor
+--          nama_penerima = teks bebas (penerima serah terima / pengembali barang)
+--          tipe_transaksi = 'serah_terima' (stok keluar) ATAU 'pengembalian' (stok masuk)
 CREATE TABLE IF NOT EXISTS `transaksi` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `barang_id` INT NOT NULL,
-  `penyerah_id` INT NOT NULL COMMENT 'Akun (admin/pekerja) yang menyerahkan & melapor',
+  `tipe_transaksi` ENUM('serah_terima','pengembalian') NOT NULL DEFAULT 'serah_terima',
+  `penyerah_id` INT NOT NULL COMMENT 'Akun admin yang melapor',
   `nama_penerima` VARCHAR(150) NOT NULL COMMENT 'Ditulis bebas oleh pelapor di form',
   `jumlah` INT NOT NULL,
   `stok_sebelum` INT NOT NULL,

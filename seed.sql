@@ -5,14 +5,13 @@
 
 USE `logistik_barang`;
 
--- 1. Insert Initial Users
--- Password Admin: Admin#12345
--- Password Pekerja: Pekerja#12345
+-- 1. Insert Initial Users (Hanya 2 Akun Admin)
+-- Password Admin 1 (admin_logistik): Admin#12345
+-- Password Admin 2 (admin_lapangan): Admin#12345
 INSERT INTO `users` (`id`, `nama`, `username`, `password_hash`, `role`) VALUES
 (1, 'Admin Logistik (CO)', 'admin_logistik', '$2y$12$M.WmlpVcba4Bc0pa1VSOguWVxLrLb6EuCRvD2PfGe9quvnubhmgBG', 'admin'),
-(2, 'Budi Santoso', 'pekerja_budi', '$2y$12$i5zxHuVXKoCdgI56Ej6wju929vPwBk72KkrYq87D9ZJLYltDCQcau', 'pekerja'),
-(3, 'Siti Rahma', 'pekerja_siti', '$2y$12$i5zxHuVXKoCdgI56Ej6wju929vPwBk72KkrYq87D9ZJLYltDCQcau', 'pekerja')
-ON DUPLICATE KEY UPDATE `nama` = VALUES(`nama`);
+(2, 'Admin Lapangan 2', 'admin_lapangan', '$2y$12$M.WmlpVcba4Bc0pa1VSOguWVxLrLb6EuCRvD2PfGe9quvnubhmgBG', 'admin')
+ON DUPLICATE KEY UPDATE `nama` = VALUES(`nama`), `role` = VALUES(`role`);
 
 -- 2. Insert Initial Master Barang (Inventaris Bersama)
 INSERT INTO `barang` (`id`, `nama_barang`, `deskripsi`, `satuan`, `stok_awal`, `stok_saat_ini`, `dibuat_oleh`) VALUES

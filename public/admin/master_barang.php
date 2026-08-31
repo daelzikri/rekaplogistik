@@ -7,8 +7,9 @@
 require_once __DIR__ . '/../middleware/auth.php';
 require_once __DIR__ . '/../../config/upload_helper.php';
 require_once __DIR__ . '/../../config/csrf.php';
+require_once __DIR__ . '/../includes/navbar.php';
 
-$user = require_role(['admin']);
+$user = require_auth();
 $db = get_db_connection();
 
 $error = null;
@@ -74,19 +75,77 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $deskripsi  = trim($_POST['deskripsi'] ?? '');
         $satuan     = trim($_POST['satuan'] ?? 'pcs');
 
+        $modeStok    = $_POST['mode_stok'] ?? 'tetap'; // 'tetap', 'tambah', 'kurang', 'set'
+        $jumlahStok  = (int)($_POST['jumlah_stok'] ?? 0);
+        $catatanStok = trim($_POST['catatan_stok'] ?? '');
+
         if ($barangId <= 0 || empty($namaBarang)) {
             set_flash_message('error', 'Data barang tidak valid.');
         } else {
             try {
                 $db->beginTransaction();
 
-                $stmt = $db->prepare("UPDATE barang SET nama_barang = :nama, deskripsi = :desk, satuan = :satuan WHERE id = :id");
+                // Row Lock Barang
+                $lockStmt = $db->prepare("SELECT id, nama_barang, satuan, stok_saat_ini FROM barang WHERE id = :id FOR UPDATE");
+                $lockStmt->execute(['id' => $barangId]);
+                $barang = $lockStmt->fetch();
+
+                if (!$barang) {
+                    throw new Exception("Barang tidak ditemukan.");
+                }
+
+                $stokSebelum = (int)$barang['stok_saat_ini'];
+                $stokSesudah = $stokSebelum;
+                $delta       = 0;
+
+                if ($modeStok === 'tambah') {
+                    if ($jumlahStok <= 0) {
+                        throw new Exception("Jumlah stok tambahan harus lebih dari 0.");
+                    }
+                    $delta = $jumlahStok;
+                    $stokSesudah = $stokSebelum + $delta;
+                } elseif ($modeStok === 'kurang') {
+                    if ($jumlahStok <= 0) {
+                        throw new Exception("Jumlah stok pengurangan harus lebih dari 0.");
+                    }
+                    if ($jumlahStok > $stokSebelum) {
+                        throw new Exception("Pengurangan stok ({$jumlahStok}) melebihi stok yang ada saat ini ({$stokSebelum}).");
+                    }
+                    $delta = -$jumlahStok;
+                    $stokSesudah = $stokSebelum + $delta;
+                } elseif ($modeStok === 'set') {
+                    if ($jumlahStok < 0) {
+                        throw new Exception("Stok tidak boleh bernilai negatif.");
+                    }
+                    $stokSesudah = $jumlahStok;
+                    $delta = $stokSesudah - $stokSebelum;
+                }
+
+                // Update Data & Stok Barang
+                $stmt = $db->prepare("UPDATE barang SET nama_barang = :nama, deskripsi = :desk, satuan = :satuan, stok_saat_ini = :stok WHERE id = :id");
                 $stmt->execute([
                     'nama'   => $namaBarang,
                     'desk'   => $deskripsi,
                     'satuan' => $satuan ?: 'pcs',
+                    'stok'   => $stokSesudah,
                     'id'     => $barangId
                 ]);
+
+                // Insert into restock_log if stock changed
+                if ($delta !== 0) {
+                    $rStmt = $db->prepare("
+                        INSERT INTO restock_log (barang_id, jumlah_tambahan, stok_sebelum, stok_sesudah, dicatat_oleh, catatan)
+                        VALUES (:b_id, :jumlah, :stok_seb, :stok_ses, :user_id, :catatan)
+                    ");
+                    $rStmt->execute([
+                        'b_id'     => $barangId,
+                        'jumlah'   => $delta,
+                        'stok_seb' => $stokSebelum,
+                        'stok_ses' => $stokSesudah,
+                        'user_id'  => $user['id'],
+                        'catatan'  => $catatanStok ?: ($delta > 0 ? "Restock / Penambahan Stok (+{$delta})" : "Pengurangan Stok ({$delta})")
+                    ]);
+                }
 
                 // Upload additional photos if provided
                 if (!empty($_FILES['foto_barang_baru']['name'][0])) {
@@ -102,54 +161,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
 
-                write_audit_log($db, $user['id'], 'EDIT_BARANG', "Mengubah data barang (ID: {$barangId}): '{$namaBarang}'.");
+                $logDetail = "Mengubah barang '{$namaBarang}'";
+                if ($delta !== 0) {
+                    $logDetail .= " & penyesuaian stok ({$stokSebelum} -> {$stokSesudah})";
+                }
+                write_audit_log($db, $user['id'], 'EDIT_BARANG', $logDetail);
+
                 $db->commit();
-                set_flash_message('success', "Data barang '{$namaBarang}' berhasil diperbarui.");
+                set_flash_message('success', "Data barang '{$namaBarang}' berhasil diperbarui." . ($delta !== 0 ? " Stok terkini: {$stokSesudah} {$satuan}." : ""));
                 header('Location: ' . base_url('public/admin/master_barang.php'));
                 exit;
             } catch (Exception $e) {
                 if ($db->inTransaction()) $db->rollBack();
                 set_flash_message('error', 'Gagal memperbarui barang: ' . $e->getMessage());
-            }
-        }
-    } elseif ($action === 'hapus') {
-        $barangId = (int)($_POST['barang_id'] ?? 0);
-        if ($barangId > 0) {
-            try {
-                // Check if referenced in transactions or restock
-                $cStmt = $db->prepare("SELECT (SELECT COUNT(*) FROM transaksi WHERE barang_id = :id1) + (SELECT COUNT(*) FROM restock_log WHERE barang_id = :id2) AS total_ref");
-                $cStmt->execute(['id1' => $barangId, 'id2' => $barangId]);
-                $refCount = (int)$cStmt->fetchColumn();
-
-                if ($refCount > 0) {
-                    set_flash_message('error', 'Barang ini tidak dapat dihapus karena sudah memiliki riwayat transaksi/restock. Silakan ubah deskripsi atau nama jika tidak lagi digunakan.');
-                } else {
-                    $db->beginTransaction();
-
-                    // Get photos to delete from disk
-                    $pStmt = $db->prepare("SELECT file_path FROM foto_barang WHERE barang_id = :id");
-                    $pStmt->execute(['id' => $barangId]);
-                    $photos = $pStmt->fetchAll();
-
-                    // Delete item record (Cascade deletes foto_barang)
-                    $bStmt = $db->prepare("DELETE FROM barang WHERE id = :id");
-                    $bStmt->execute(['id' => $barangId]);
-
-                    // Remove physical image files
-                    foreach ($photos as $p) {
-                        $fullPath = __DIR__ . '/../' . $p['file_path'];
-                        if (file_exists($fullPath)) @unlink($fullPath);
-                    }
-
-                    write_audit_log($db, $user['id'], 'HAPUS_BARANG', "Menghapus barang (ID: {$barangId}).");
-                    $db->commit();
-                    set_flash_message('success', 'Barang berhasil dihapus.');
-                }
-                header('Location: ' . base_url('public/admin/master_barang.php'));
-                exit;
-            } catch (Exception $e) {
-                if ($db->inTransaction()) $db->rollBack();
-                set_flash_message('error', 'Gagal menghapus barang: ' . $e->getMessage());
             }
         }
     } elseif ($action === 'hapus_foto') {
@@ -232,58 +256,7 @@ $flash = get_flash_message();
 </head>
 <body class="min-h-full bg-slate-950 text-slate-100 flex flex-col font-sans">
 
-    <!-- Top Navigation Bar -->
-    <header class="bg-slate-900/90 backdrop-blur-md border-b border-slate-800 sticky top-0 z-30">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex items-center justify-between h-16">
-                <!-- Logo & Brand -->
-                <div class="flex items-center space-x-3">
-                    <div class="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white font-bold shadow-lg shadow-indigo-500/20">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
-                        </svg>
-                    </div>
-                    <div>
-                        <span class="text-base font-bold text-white tracking-wide">Logistik System</span>
-                        <span class="hidden sm:inline-block ml-2 px-2 py-0.5 text-[10px] font-semibold uppercase bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded-md">Admin Portal</span>
-                    </div>
-                </div>
-
-                <!-- Navigation Links -->
-                <nav class="hidden md:flex items-center space-x-1 text-sm font-medium">
-                    <a href="<?= base_url('public/admin/dashboard.php') ?>" class="px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition">Dashboard</a>
-                    <a href="<?= base_url('public/admin/master_barang.php') ?>" class="px-3 py-2 rounded-lg text-white bg-indigo-600/20 text-indigo-400 border border-indigo-500/30">Master Barang</a>
-                    <a href="<?= base_url('public/admin/restock.php') ?>" class="px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition">Restock</a>
-                    <a href="<?= base_url('public/admin/kelola_akun.php') ?>" class="px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition">Kelola Akun</a>
-                    <a href="<?= base_url('public/admin/riwayat_transaksi.php') ?>" class="px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition">Semua Riwayat</a>
-                    <a href="<?= base_url('public/katalog.php') ?>" class="px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition">Katalog</a>
-                    <a href="<?= base_url('public/serah_terima/lapor.php') ?>" class="px-3 py-2 rounded-lg text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 transition">Form Lapor</a>
-                </nav>
-
-                <!-- User Dropdown / Logout -->
-                <div class="flex items-center space-x-3">
-                    <div class="text-right hidden sm:block">
-                        <div class="text-xs font-semibold text-white"><?= e($user['nama']) ?></div>
-                        <div class="text-[10px] text-indigo-400 font-medium">Administrator (CO)</div>
-                    </div>
-                    <a href="<?= base_url('public/auth/logout.php') ?>" class="p-2 rounded-xl bg-slate-800 hover:bg-rose-500/20 hover:text-rose-400 text-slate-400 transition" title="Keluar">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
-                        </svg>
-                    </a>
-                </div>
-            </div>
-        </div>
-
-        <!-- Mobile Navigation Menu Bar -->
-        <div class="md:hidden border-t border-slate-800 px-4 py-2 flex items-center justify-around text-xs font-medium">
-            <a href="<?= base_url('public/admin/dashboard.php') ?>" class="text-slate-400 py-1">Dashboard</a>
-            <a href="<?= base_url('public/admin/master_barang.php') ?>" class="text-indigo-400 font-bold py-1">Master</a>
-            <a href="<?= base_url('public/katalog.php') ?>" class="text-slate-400 py-1">Katalog</a>
-            <a href="<?= base_url('public/serah_terima/lapor.php') ?>" class="text-emerald-400 font-bold py-1">Lapor</a>
-            <a href="<?= base_url('public/admin/riwayat_transaksi.php') ?>" class="text-slate-400 py-1">Riwayat</a>
-        </div>
-    </header>
+    <?php render_navbar('master_barang', $user); ?>
 
     <!-- Main Content Container -->
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full">
@@ -412,16 +385,11 @@ $flash = get_flash_message();
                                 <td class="py-3 px-4 text-center">
                                     <div class="flex items-center justify-center space-x-2">
                                         <button onclick='openEditModal(<?= e(json_encode($b)) ?>, <?= e(json_encode($allPhotos[$b['id']] ?? [])) ?>)'
-                                            class="p-2 rounded-lg bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 border border-indigo-500/30 transition" title="Edit Barang & Foto">
+                                            class="px-3 py-1.5 rounded-lg bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 border border-indigo-500/30 font-medium text-xs flex items-center space-x-1.5 transition" title="Edit Barang & Penyesuaian Stok">
                                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
                                             </svg>
-                                        </button>
-                                        <button onclick='openDeleteModal(<?= e(json_encode($b)) ?>)'
-                                            class="p-2 rounded-lg bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 border border-rose-500/30 transition" title="Hapus Barang">
-                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                                            </svg>
+                                            <span>Edit / Restock</span>
                                         </button>
                                     </div>
                                 </td>
@@ -463,12 +431,10 @@ $flash = get_flash_message();
                                 <span class="mx-1 text-slate-700">•</span>
                                 <span class="text-emerald-400 font-bold">Sisa: <?= number_format($b['stok_saat_ini']) ?></span>
                             </div>
-                            <div class="flex items-center space-x-2">
-                                <button onclick='openEditModal(<?= e(json_encode($b)) ?>, <?= e(json_encode($allPhotos[$b['id']] ?? [])) ?>)'
-                                    class="px-3 py-1.5 bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 rounded-lg font-medium">Edit</button>
-                                <button onclick='openDeleteModal(<?= e(json_encode($b)) ?>)'
-                                    class="px-3 py-1.5 bg-rose-600/20 text-rose-400 border border-rose-500/30 rounded-lg font-medium">Hapus</button>
-                            </div>
+                            <button onclick='openEditModal(<?= e(json_encode($b)) ?>, <?= e(json_encode($allPhotos[$b['id']] ?? [])) ?>)'
+                                class="px-3.5 py-1.5 bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 rounded-lg font-medium hover:bg-indigo-600/30 transition">
+                                Edit & Restock
+                            </button>
                         </div>
                     </div>
                 <?php endforeach; ?>
@@ -532,11 +498,14 @@ $flash = get_flash_message();
         </div>
     </div>
 
-    <!-- MODAL EDIT BARANG -->
+    <!-- MODAL EDIT & PENYESUAIAN STOK BARANG -->
     <div id="editModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm hidden">
         <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl relative overflow-y-auto max-h-[90vh]">
             <div class="flex items-center justify-between border-b border-slate-800 pb-4 mb-5">
-                <h3 class="text-lg font-bold text-white">Edit Master Barang</h3>
+                <div>
+                    <h3 class="text-lg font-bold text-white">Edit & Restock Barang</h3>
+                    <p class="text-xs text-slate-400">Ubah data barang atau sesuaikan stok (tambah/kurang).</p>
+                </div>
                 <button onclick="closeEditModal()" class="text-slate-400 hover:text-white p-1">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                 </button>
@@ -561,8 +530,39 @@ $flash = get_flash_message();
 
                 <div>
                     <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1">Deskripsi Barang</label>
-                    <textarea id="edit_deskripsi" name="deskripsi" rows="3"
+                    <textarea id="edit_deskripsi" name="deskripsi" rows="2"
                         class="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-indigo-500"></textarea>
+                </div>
+
+                <!-- Penyesuaian Stok / Restock Section -->
+                <div class="p-4 bg-slate-950/80 border border-slate-800 rounded-xl space-y-3">
+                    <div class="flex items-center justify-between">
+                        <label class="text-xs font-bold text-indigo-400 uppercase tracking-wider">Penyesuaian Stok ( Restock / Kurang )</label>
+                        <span class="text-xs text-slate-400">Stok Saat Ini: <strong id="edit_stok_saat_ini" class="text-emerald-400 font-mono">0</strong></span>
+                    </div>
+
+                    <div>
+                        <label class="block text-[11px] text-slate-400 mb-1">Pilih Mode Penyesuaian:</label>
+                        <select id="edit_mode_stok" name="mode_stok" onchange="toggleStokInputs()"
+                            class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500">
+                            <option value="tetap">Tetap (Tidak mengubah jumlah stok)</option>
+                            <option value="tambah">Tambah Stok / Restock (+ Masuk)</option>
+                            <option value="kurang">Kurangi Stok (- Keluar / Rusak / Hilang)</option>
+                            <option value="set">Set Total Stok Langsung (Ganti Angka Total)</option>
+                        </select>
+                    </div>
+
+                    <div id="container_jumlah_stok" class="hidden">
+                        <label id="label_jumlah_stok" class="block text-[11px] text-slate-400 mb-1">Jumlah:</label>
+                        <input type="number" id="edit_jumlah_stok" name="jumlah_stok" min="0" value="0"
+                            class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500 font-mono">
+                    </div>
+
+                    <div id="container_catatan_stok" class="hidden">
+                        <label class="block text-[11px] text-slate-400 mb-1">Catatan Alasan Penyesuaian Stok:</label>
+                        <input type="text" id="edit_catatan_stok" name="catatan_stok" placeholder="Contoh: Pembelian baru / Barang rusak saat event"
+                            class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500">
+                    </div>
                 </div>
 
                 <!-- Existing Photos Management -->
@@ -585,25 +585,6 @@ $flash = get_flash_message();
         </div>
     </div>
 
-    <!-- MODAL HAPUS BARANG CONFIRMATION -->
-    <div id="deleteModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm hidden">
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-sm w-full p-6 shadow-2xl text-center">
-            <div class="w-14 h-14 rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-center justify-center mx-auto mb-4">
-                <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
-            </div>
-            <h3 class="text-base font-bold text-white mb-1">Hapus Barang Master?</h3>
-            <p id="delete_item_name" class="text-xs text-slate-400 mb-6"></p>
-
-            <form action="" method="POST" class="flex items-center justify-center space-x-3">
-                <?= csrf_field() ?>
-                <input type="hidden" name="action" value="hapus">
-                <input type="hidden" id="delete_barang_id" name="barang_id">
-                <button type="button" onclick="closeDeleteModal()" class="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-medium rounded-xl">Batal</button>
-                <button type="submit" class="w-full py-2.5 bg-rose-600 hover:bg-rose-500 text-white text-sm font-semibold rounded-xl shadow-lg shadow-rose-600/30">Ya, Hapus</button>
-            </form>
-        </div>
-    </div>
-
     <!-- Hidden Form for Deleting Specific Photo -->
     <form id="deletePhotoForm" action="" method="POST" class="hidden">
         <?= csrf_field() ?>
@@ -619,11 +600,40 @@ $flash = get_flash_message();
             document.getElementById('addModal').classList.add('hidden');
         }
 
+        function toggleStokInputs() {
+            const mode = document.getElementById('edit_mode_stok').value;
+            const containerJumlah = document.getElementById('container_jumlah_stok');
+            const containerCatatan = document.getElementById('container_catatan_stok');
+            const labelJumlah = document.getElementById('label_jumlah_stok');
+
+            if (mode === 'tetap') {
+                containerJumlah.classList.add('hidden');
+                containerCatatan.classList.add('hidden');
+            } else {
+                containerJumlah.classList.remove('hidden');
+                containerCatatan.classList.remove('hidden');
+                if (mode === 'tambah') {
+                    labelJumlah.innerText = 'Jumlah Stok Ditambahkan (+):';
+                } else if (mode === 'kurang') {
+                    labelJumlah.innerText = 'Jumlah Stok Dikurangi (-):';
+                } else if (mode === 'set') {
+                    labelJumlah.innerText = 'Set Total Stok Baru:';
+                }
+            }
+        }
+
         function openEditModal(barang, photos) {
             document.getElementById('edit_barang_id').value = barang.id;
             document.getElementById('edit_nama_barang').value = barang.nama_barang;
             document.getElementById('edit_satuan').value = barang.satuan;
             document.getElementById('edit_deskripsi').value = barang.deskripsi || '';
+
+            // Reset stok adjustment inputs
+            document.getElementById('edit_stok_saat_ini').innerText = `${Number(barang.stok_saat_ini).toLocaleString()} ${barang.satuan}`;
+            document.getElementById('edit_mode_stok').value = 'tetap';
+            document.getElementById('edit_jumlah_stok').value = 0;
+            document.getElementById('edit_catatan_stok').value = '';
+            toggleStokInputs();
 
             const photoContainer = document.getElementById('edit_photo_list');
             photoContainer.innerHTML = '';
@@ -649,15 +659,6 @@ $flash = get_flash_message();
         }
         function closeEditModal() {
             document.getElementById('editModal').classList.add('hidden');
-        }
-
-        function openDeleteModal(barang) {
-            document.getElementById('delete_barang_id').value = barang.id;
-            document.getElementById('delete_item_name').innerText = `Anda yakin ingin menghapus "${barang.nama_barang}"?`;
-            document.getElementById('deleteModal').classList.remove('hidden');
-        }
-        function closeDeleteModal() {
-            document.getElementById('deleteModal').classList.add('hidden');
         }
 
         function deleteSpecificPhoto(photoId) {

@@ -4,13 +4,13 @@
 -- Petunjuk: Import file ini langsung ke phpMyAdmin database Hostinger Anda
 -- ===================================================
 
--- 1. Tabel Users
+-- 1. Tabel Users (2 akun Admin)
 CREATE TABLE IF NOT EXISTS `users` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `nama` VARCHAR(150) NOT NULL,
   `username` VARCHAR(100) UNIQUE NOT NULL,
   `password_hash` VARCHAR(255) NOT NULL,
-  `role` ENUM('admin','pekerja') NOT NULL DEFAULT 'pekerja',
+  `role` ENUM('admin') NOT NULL DEFAULT 'admin',
   `session_token` VARCHAR(255) NULL,
   `last_activity_at` DATETIME NULL,
   `failed_login_count` INT DEFAULT 0,
@@ -45,11 +45,12 @@ CREATE TABLE IF NOT EXISTS `foto_barang` (
   CONSTRAINT `fk_foto_barang` FOREIGN KEY (`barang_id`) REFERENCES `barang` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 4. Tabel Transaksi (Log Serah Terima)
+-- 4. Tabel Transaksi (Log Serah Terima & Pengembalian Barang)
 CREATE TABLE IF NOT EXISTS `transaksi` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `barang_id` INT NOT NULL,
-  `penyerah_id` INT NOT NULL COMMENT 'Akun (admin/pekerja) yang menyerahkan & melapor',
+  `tipe_transaksi` ENUM('serah_terima','pengembalian') NOT NULL DEFAULT 'serah_terima',
+  `penyerah_id` INT NOT NULL COMMENT 'Akun admin yang melapor',
   `nama_penerima` VARCHAR(150) NOT NULL COMMENT 'Ditulis bebas oleh pelapor di form',
   `jumlah` INT NOT NULL,
   `stok_sebelum` INT NOT NULL,
@@ -72,7 +73,7 @@ CREATE TABLE IF NOT EXISTS `foto_transaksi` (
   CONSTRAINT `fk_foto_transaksi` FOREIGN KEY (`transaksi_id`) REFERENCES `transaksi` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 6. Tabel Restock (Stok Masuk, dikelola Admin)
+-- 6. Tabel Restock (Stok Masuk & Penyesuaian)
 CREATE TABLE IF NOT EXISTS `restock_log` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `barang_id` INT NOT NULL,
@@ -98,17 +99,16 @@ CREATE TABLE IF NOT EXISTS `audit_log` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ===================================================
--- SEED DATA AWAL (Akun Default & Barang Master)
+-- SEED DATA AWAL (2 Akun Admin Default & Barang Master)
 -- ===================================================
 
--- Akun Default:
--- Admin: admin_logistik / Admin#12345
--- Pekerja: pekerja_budi / Pekerja#12345
+-- Akun Default (Password: Admin#12345):
+-- Admin 1: admin_logistik
+-- Admin 2: admin_lapangan
 INSERT INTO `users` (`id`, `nama`, `username`, `password_hash`, `role`) VALUES
 (1, 'Admin Logistik (CO)', 'admin_logistik', '$2y$12$M.WmlpVcba4Bc0pa1VSOguWVxLrLb6EuCRvD2PfGe9quvnubhmgBG', 'admin'),
-(2, 'Budi Santoso', 'pekerja_budi', '$2y$12$i5zxHuVXKoCdgI56Ej6wju929vPwBk72KkrYq87D9ZJLYltDCQcau', 'pekerja'),
-(3, 'Siti Rahma', 'pekerja_siti', '$2y$12$i5zxHuVXKoCdgI56Ej6wju929vPwBk72KkrYq87D9ZJLYltDCQcau', 'pekerja')
-ON DUPLICATE KEY UPDATE `nama` = VALUES(`nama`);
+(2, 'Admin Lapangan 2', 'admin_lapangan', '$2y$12$M.WmlpVcba4Bc0pa1VSOguWVxLrLb6EuCRvD2PfGe9quvnubhmgBG', 'admin')
+ON DUPLICATE KEY UPDATE `nama` = VALUES(`nama`), `role` = VALUES(`role`);
 
 INSERT INTO `barang` (`id`, `nama_barang`, `deskripsi`, `satuan`, `stok_awal`, `stok_saat_ini`, `dibuat_oleh`) VALUES
 (1, 'Kursi Lipat Futura Red', 'Kursi lipat besi stainles busa merah untuk acara & rapat.', 'unit', 50, 50, 1),
