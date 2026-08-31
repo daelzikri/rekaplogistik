@@ -89,31 +89,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 }
 
 // Filters
-$tglMulai      = trim($_GET['tgl_mulai'] ?? '');
-$tglSelesai    = trim($_GET['tgl_selesai'] ?? '');
 $barangId      = (int)($_GET['barang_id'] ?? 0);
-$penyerahId    = (int)($_GET['penyerah_id'] ?? 0);
 $tipeTransaksi = trim($_GET['tipe'] ?? '');
 $search        = trim($_GET['q'] ?? '');
 
 $where = ["1=1"];
 $params = [];
 
-if ($tglMulai !== '') {
-    $where[] = "DATE(t.waktu_transaksi) >= :tgl_mulai";
-    $params['tgl_mulai'] = $tglMulai;
-}
-if ($tglSelesai !== '') {
-    $where[] = "DATE(t.waktu_transaksi) <= :tgl_selesai";
-    $params['tgl_selesai'] = $tglSelesai;
-}
 if ($barangId > 0) {
     $where[] = "t.barang_id = :barang_id";
     $params['barang_id'] = $barangId;
-}
-if ($penyerahId > 0) {
-    $where[] = "t.penyerah_id = :penyerah_id";
-    $params['penyerah_id'] = $penyerahId;
 }
 if (in_array($tipeTransaksi, ['serah_terima', 'pengembalian'], true)) {
     $where[] = "t.tipe_transaksi = :tipe";
@@ -190,58 +175,46 @@ $flash = get_flash_message();
             <p class="text-xs text-slate-400 mt-1">Audit log seluruh transaksi serah terima barang keluar & pengembalian barang masuk dari Admin.</p>
         </div>
 
-        <!-- Filter Card -->
-        <div class="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-2xl p-5 shadow-xl">
-            <form action="" method="GET" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4 items-end">
-                <div>
-                    <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Tanggal Mulai</label>
-                    <input type="date" name="tgl_mulai" value="<?= e($tglMulai) ?>"
-                        class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500">
+        <!-- Filter & Search Card -->
+        <div class="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-2xl p-4 shadow-xl">
+            <form action="" method="GET" class="flex flex-col sm:flex-row items-center gap-3">
+                <!-- Search Input -->
+                <div class="relative w-full sm:flex-1">
+                    <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                    </span>
+                    <input type="text" name="q" value="<?= e($search) ?>" placeholder="Cari pihak penerima, nama barang, atau catatan..."
+                        class="w-full pl-10 pr-4 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500">
                 </div>
 
-                <div>
-                    <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Tanggal Selesai</label>
-                    <input type="date" name="tgl_selesai" value="<?= e($tglSelesai) ?>"
-                        class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500">
-                </div>
-
-                <div>
-                    <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Tipe Transaksi</label>
-                    <select name="tipe"
-                        class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500">
-                        <option value="">Semua Tipe</option>
-                        <option value="serah_terima" <?= $tipeTransaksi === 'serah_terima' ? 'selected' : '' ?>>Serah Terima (Keluar)</option>
-                        <option value="pengembalian" <?= $tipeTransaksi === 'pengembalian' ? 'selected' : '' ?>>Pengembalian (Masuk)</option>
+                <!-- Filter Tipe Transaksi -->
+                <div class="w-full sm:w-48">
+                    <select name="tipe" class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500">
+                        <option value="">Semua Tipe Transaksi</option>
+                        <option value="serah_terima" <?= $tipeTransaksi === 'serah_terima' ? 'selected' : '' ?>>Barang Keluar (Serah Terima)</option>
+                        <option value="pengembalian" <?= $tipeTransaksi === 'pengembalian' ? 'selected' : '' ?>>Barang Masuk (Pengembalian)</option>
                     </select>
                 </div>
 
-                <div>
-                    <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Filter Barang</label>
-                    <select name="barang_id"
-                        class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500">
-                        <option value="">Semua Barang</option>
+                <!-- Filter Barang -->
+                <div class="w-full sm:w-48">
+                    <select name="barang_id" class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500">
+                        <option value="">Semua Barang Master</option>
                         <?php foreach ($barangOptions as $bo): ?>
                             <option value="<?= $bo['id'] ?>" <?= $barangId == $bo['id'] ? 'selected' : '' ?>><?= e($bo['nama_barang']) ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
 
-                <div>
-                    <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Filter Admin Pelapor</label>
-                    <select name="penyerah_id"
-                        class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500">
-                        <option value="">Semua Admin</option>
-                        <?php foreach ($penyerahOptions as $po): ?>
-                            <option value="<?= $po['id'] ?>" <?= $penyerahId == $po['id'] ? 'selected' : '' ?>><?= e($po['nama']) ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                <div class="flex items-center space-x-2">
-                    <button type="submit" class="flex-1 py-2 px-4 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl transition">
-                        Filter Data
+                <div class="flex items-center space-x-2 w-full sm:w-auto">
+                    <button type="submit" class="flex-1 sm:flex-none px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl transition">
+                        Filter
                     </button>
-                    <a href="<?= base_url('public/admin/riwayat_transaksi.php') ?>" class="py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-400 text-xs rounded-xl transition">
-                        Reset
-                    </a>
+                    <?php if ($search !== '' || $tipeTransaksi !== '' || $barangId > 0): ?>
+                        <a href="<?= base_url('public/admin/riwayat_transaksi.php') ?>" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-400 text-xs rounded-xl text-center transition">
+                            Reset
+                        </a>
+                    <?php endif; ?>
                 </div>
             </form>
         </div>
@@ -251,25 +224,17 @@ $flash = get_flash_message();
             <span class="text-xs text-slate-400 font-semibold uppercase tracking-wider mr-1">Quick Filter:</span>
 
             <a href="<?= base_url('public/admin/riwayat_transaksi.php') ?>"
-                class="px-3 py-1.5 rounded-xl text-xs font-semibold border transition flex items-center space-x-1.5 <?= (empty($penyerahId) && empty($tipeTransaksi)) ? 'bg-indigo-600/30 text-indigo-300 border-indigo-500/50 shadow-md font-bold' : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white' ?>">
+                class="px-3 py-1.5 rounded-xl text-xs font-semibold border transition flex items-center space-x-1.5 <?= (empty($tipeTransaksi) && empty($search) && $barangId === 0) ? 'bg-indigo-600/30 text-indigo-300 border-indigo-500/50 shadow-md font-bold' : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white' ?>">
                 <span>Semua Transaksi</span>
-            </a>
-
-            <a href="<?= base_url('public/admin/riwayat_transaksi.php?penyerah_id=' . $user['id']) ?>"
-                class="px-3 py-1.5 rounded-xl text-xs font-semibold border transition flex items-center space-x-1.5 <?= ($penyerahId === (int)$user['id']) ? 'bg-indigo-600/30 text-indigo-300 border-indigo-500/50 shadow-md font-bold' : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white' ?>">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
-                <span>Transaksi Saya</span>
             </a>
 
             <a href="<?= base_url('public/admin/riwayat_transaksi.php?tipe=serah_terima') ?>"
                 class="px-3 py-1.5 rounded-xl text-xs font-semibold border transition flex items-center space-x-1.5 <?= ($tipeTransaksi === 'serah_terima') ? 'bg-rose-500/20 text-rose-300 border-rose-500/40 shadow-md font-bold' : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white' ?>">
-                <svg class="w-3.5 h-3.5 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
                 <span>Barang Keluar (Serah Terima)</span>
             </a>
 
             <a href="<?= base_url('public/admin/riwayat_transaksi.php?tipe=pengembalian') ?>"
                 class="px-3 py-1.5 rounded-xl text-xs font-semibold border transition flex items-center space-x-1.5 <?= ($tipeTransaksi === 'pengembalian') ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-md font-bold' : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white' ?>">
-                <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                 <span>Barang Masuk (Pengembalian)</span>
             </a>
         </div>
