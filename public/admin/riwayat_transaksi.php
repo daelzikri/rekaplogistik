@@ -60,19 +60,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 $upB->execute(['stok' => $stokBaru, 'id' => $tx['barang_id']]);
             }
 
-            // Delete physical files
-            $fStmt = $db->prepare("SELECT file_path FROM foto_transaksi WHERE transaksi_id = :id");
-            $fStmt->execute(['id' => $transaksiId]);
-            $photos = $fStmt->fetchAll();
-
-            foreach ($photos as $p) {
-                $filePath = __DIR__ . '/../' . $p['file_path'];
-                if (file_exists($filePath)) {
-                    @unlink($filePath);
-                }
-            }
-
-            // Delete foto_transaksi and transaksi records
+            // Delete foto_transaksi and transaksi records (Physical files kept safely on disk for audit safety)
             $delF = $db->prepare("DELETE FROM foto_transaksi WHERE transaksi_id = :id");
             $delF->execute(['id' => $transaksiId]);
 
